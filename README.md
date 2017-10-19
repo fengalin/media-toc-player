@@ -1,4 +1,4 @@
-# media-toc-player
+# media-toc-player [![Build Status](https://travis-ci.org/fengalin/media-toc-player.svg?branch=master)](https://travis-ci.org/fengalin/media-toc-player) [![Build status](https://ci.appveyor.com/api/projects/status/yc1gba3o1h69t3g3?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc-player)
 media-toc-player is a media player with a table of contents which allows seeking
 to a given chapter. It is a simplication of [media-toc](https://github.com/fengalin/media-toc),
 an application to create and edit a table of contents from a media file. It is
