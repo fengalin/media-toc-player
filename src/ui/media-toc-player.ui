@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.20.1 -->
+<interface>
+  <requires lib="gtk+" version="3.10"/>
+  <object class="GtkTreeStore" id="chapters-tree-store">
+    <columns>
+      <!-- column-name Id -->
+      <column type="gint"/>
+      <!-- column-name Start -->
+      <column type="guint64"/>
+      <!-- column-name End -->
+      <column type="guint64"/>
+      <!-- column-name Title -->
+      <column type="gchararray"/>
+      <!-- column-name StartStr -->
+      <column type="gchararray"/>
+      <!-- column-name EndStr -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkApplicationWindow" id="application-window">
+    <property name="width_request">1100</property>
+    <property name="height_request">700</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">emblem-documents</property>
+    <property name="has_resize_grip">True</property>
+    <signal name="destroy-event" handler="on_destroy" swapped="no"/>
+    <child>
+      <object class="GtkGrid" id="main-grid">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="hexpand">True</property>
+        <property name="vexpand">True</property>
+        <child>
+          <object class="GtkGrid" id="info-chapter_list-grid">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="margin_left">4</property>
+            <property name="margin_right">4</property>
+            <child>
+              <object class="GtkGrid" id="info-grid">
+                <property name="height_request">150</property>
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="valign">start</property>
+                <property name="margin_top">5</property>
+                <property name="hexpand">True</property>
+                <property name="row_spacing">5</property>
+                <property name="column_spacing">10</property>
+                <child>
+                  <object class="GtkLabel" id="title-caption">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">end</property>
+                    <property name="label" translatable="yes">Title:</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">0</property>
+                    <property name="top_attach">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="artist-caption">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">end</property>
+                    <property name="label" translatable="yes">Artist:</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">0</property>
+                    <property name="top_attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="container-caption">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">end</property>
+                    <property name="label" translatable="yes">Container:</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">0</property>
+                    <property name="top_attach">2</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="video_codec-caption">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">end</property>
+                    <property name="label" translatable="yes">Video Codec:</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">0</property>
+                    <property name="top_attach">3</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="audio_codec-caption">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">end</property>
+                    <property name="label" translatable="yes">Audio Codec:</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">0</property>
+                    <property name="top_attach">4</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="duration-caption">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">end</property>
+                    <property name="label" translatable="yes">Duration:</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">0</property>
+                    <property name="top_attach">5</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="title-lbl">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="hexpand">True</property>
+                    <property name="wrap">True</property>
+                    <property name="selectable">True</property>
+                    <property name="width_chars">0</property>
+                    <property name="max_width_chars">30</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">1</property>
+                    <property name="top_attach">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="artist-lbl">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="hexpand">True</property>
+                    <property name="wrap">True</property>
+                    <property name="selectable">True</property>
+                    <property name="width_chars">0</property>
+                    <property name="max_width_chars">30</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">1</property>
+                    <property name="top_attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="container-lbl">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="hexpand">True</property>
+                    <property name="wrap">True</property>
+                    <property name="selectable">True</property>
+                    <property name="width_chars">0</property>
+                    <property name="max_width_chars">30</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">1</property>
+                    <property name="top_attach">2</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="video_codec-lbl">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="hexpand">True</property>
+                    <property name="wrap">True</property>
+                    <property name="selectable">True</property>
+                    <property name="width_chars">0</property>
+                    <property name="max_width_chars">30</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">1</property>
+                    <property name="top_attach">3</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="audio_codec-lbl">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="hexpand">True</property>
+                    <property name="wrap">True</property>
+                    <property name="selectable">True</property>
+                    <property name="width_chars">0</property>
+                    <property name="max_width_chars">30</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">1</property>
+                    <property name="top_attach">4</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="duration-lbl">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="hexpand">True</property>
+                    <property name="wrap">True</property>
+                    <property name="selectable">True</property>
+                    <property name="width_chars">0</property>
+                    <property name="max_width_chars">30</property>
+                  </object>
+                  <packing>
+                    <property name="left_attach">1</property>
+                    <property name="top_attach">5</property>
+                  </packing>
+                </child>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkDrawingArea" id="thumbnail-drawingarea">
+                <property name="width_request">120</property>
+                <property name="height_request">120</property>
+                <property name="visible">True</property>
+                <property name="app_paintable">True</property>
+                <property name="can_focus">False</property>
+                <property name="valign">start</property>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkTreeView" id="chapter-treeview">
+                <property name="width_request">220</property>
+                <property name="height_request">500</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="margin_bottom">3</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+                <property name="model">chapters-tree-store</property>
+                <property name="search_column">0</property>
+                <property name="enable_grid_lines">horizontal</property>
+                <child internal-child="selection">
+                  <object class="GtkTreeSelection"/>
+                </child>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">1</property>
+                <property name="width">2</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="left_attach">4</property>
+            <property name="top_attach">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkBox" id="video-container">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="hexpand">True</property>
+            <property name="vexpand">True</property>
+            <property name="orientation">vertical</property>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <object class="GtkBox" id="timeline-play_pause-box">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <child>
+                  <object class="GtkScale" id="timeline-scale">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="valign">end</property>
+                    <property name="hexpand">True</property>
+                    <property name="show_fill_level">True</property>
+                    <property name="draw_value">False</property>
+                    <property name="value_pos">left</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkToolbar" id="play_pause-toolbar">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">end</property>
+                    <property name="valign">end</property>
+                    <property name="toolbar_style">icons</property>
+                    <property name="show_arrow">False</property>
+                    <child>
+                      <object class="GtkToolButton" id="play_pause-toolbutton">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="halign">end</property>
+                        <property name="valign">end</property>
+                        <property name="visible_vertical">False</property>
+                        <property name="icon_name">media-playback-start</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="homogeneous">True</property>
+                      </packing>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="left_attach">0</property>
+            <property name="top_attach">0</property>
+            <property name="width">4</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+    <child type="titlebar">
+      <placeholder/>
+    </child>
+  </object>
+  <object class="GtkHeaderBar" id="header-bar">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="title">Media Table Of Contents Player</property>
+    <property name="show_close_button">True</property>
+    <child>
+      <object class="GtkButton" id="open-btn">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="receives_default">True</property>
+        <child>
+          <object class="GtkImage">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="stock">gtk-open</property>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>
