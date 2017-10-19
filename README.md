@@ -1,4 +1,4 @@
-# media-toc
+# media-toc-player
 media-toc-player is a media player with a table of contents which allows seeking
 to a given chapter. It is a simplication of [media-toc](https://github.com/fengalin/media-toc),
 an application to create and edit a table of contents from a media file. It is
@@ -17,7 +17,7 @@ forsee:
 - Display the cover image on the left for audio files.
 
 # Technologies
-**media-toc** is developed in Rust and uses the following technologies:
+**media-toc-player** is developed in Rust and uses the following technologies:
 - **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
 [Rust binding](http://gtk-rs.org/docs/gtk/)) and [Glade](https://glade.gnome.org/).
 - **Cairo** ([official documentation](https://www.cairographics.org/documentation/),
