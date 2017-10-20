@@ -247,20 +247,6 @@
               </packing>
             </child>
             <child>
-              <object class="GtkDrawingArea" id="thumbnail-drawingarea">
-                <property name="width_request">120</property>
-                <property name="height_request">120</property>
-                <property name="visible">True</property>
-                <property name="app_paintable">True</property>
-                <property name="can_focus">False</property>
-                <property name="valign">start</property>
-              </object>
-              <packing>
-                <property name="left_attach">1</property>
-                <property name="top_attach">0</property>
-              </packing>
-            </child>
-            <child>
               <object class="GtkTreeView" id="chapter-treeview">
                 <property name="width_request">220</property>
                 <property name="height_request">500</property>
@@ -279,7 +265,6 @@
               <packing>
                 <property name="left_attach">0</property>
                 <property name="top_attach">1</property>
-                <property name="width">2</property>
               </packing>
             </child>
           </object>
@@ -297,6 +282,21 @@
             <property name="orientation">vertical</property>
             <child>
               <placeholder/>
+            </child>
+            <child>
+              <object class="GtkDrawingArea" id="thumbnail-drawingarea">
+                <property name="sensitive">False</property>
+                <property name="app_paintable">True</property>
+                <property name="can_focus">False</property>
+                <property name="no_show_all">True</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
             </child>
             <child>
               <object class="GtkBox" id="timeline-play_pause-box">
@@ -364,7 +364,7 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">True</property>
-                <property name="position">1</property>
+                <property name="position">2</property>
               </packing>
             </child>
           </object>

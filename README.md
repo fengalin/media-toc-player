@@ -15,7 +15,6 @@ I intend to keep this application simple. These are the modifications that I
 forsee:
 - Allow hiding the chapters list.
 - Switch to full screen mode.
-- Display the cover image on the left for audio files.
 
 # Technologies
 **media-toc-player** is developed in Rust and uses the following technologies:

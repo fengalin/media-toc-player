@@ -179,24 +179,22 @@ impl InfoController {
             let mut info = context.info.lock()
                 .expect("Failed to lock media info in InfoController");
 
-            if let Some(thumbnail) = info.thumbnail.take() {
-                if let Ok(image) = ImageSurface::from_aligned_image(thumbnail) {
-                    self.thumbnail = Some(image);
+            info.fix();
+
+            if info.video_best.is_none()
+            {
+                if let Some(thumbnail) = info.thumbnail.take() {
+                    if let Ok(image) = ImageSurface::from_aligned_image(thumbnail) {
+                        self.thumbnail = Some(image);
+                    }
                 }
-            };
+            }
 
             self.title_lbl.set_label(&info.title);
             self.artist_lbl.set_label(&info.artist);
-            // Fix container for mp3 audio files TODO: move this to MediaInfo
-            let container = if info.video_codec.is_empty()
-                && info.audio_codec.to_lowercase().find("mp3").is_some()
-            {
-                "MP3"
-            }
-            else {
-                &info.container
-            };
-            self.container_lbl.set_label(container);
+            self.container_lbl.set_label(
+                if !info.container.is_empty() { &info.container } else { "-" }
+            );
             self.audio_codec_lbl.set_label(
                 if !info.audio_codec.is_empty() { &info.audio_codec } else { "-" }
             );

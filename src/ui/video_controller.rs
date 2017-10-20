@@ -1,5 +1,5 @@
 extern crate gtk;
-use gtk::BoxExt;
+use gtk::{BoxExt, WidgetExt};
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -9,6 +9,7 @@ use media::Context;
 use super::MainController;
 
 pub struct VideoController {
+    video_widget: gtk::Widget,
 }
 
 impl VideoController {
@@ -19,12 +20,23 @@ impl VideoController {
         container.reorder_child(&video_widget, 0);
 
         VideoController {
+            video_widget: video_widget,
         }
     }
 
     pub fn register_callbacks(&self, _: &Rc<RefCell<MainController>>) {
     }
 
-    pub fn new_media(&mut self, _context: &Context) {
+    pub fn new_media(&mut self, context: &Context) {
+        let has_video = context.info.lock()
+                .expect("Failed to lock media info while initializing video controller")
+                .video_best
+                .is_some();
+
+        if has_video {
+            self.video_widget.show();
+        } else {
+            self.video_widget.hide();
+        }
     }
 }
