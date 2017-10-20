@@ -34,7 +34,7 @@ pub struct MainController {
     play_pause_btn: gtk::ToolButton,
 
     video_ctrl: VideoController,
-    info_ctrl: InfoController,
+    info_ctrl: Rc<RefCell<InfoController>>,
 
     context: Option<Context>,
     state: ControllerState,
@@ -89,7 +89,7 @@ impl MainController {
             // play/pause, etc.
 
             this_mut.video_ctrl.register_callbacks(&this);
-            this_mut.info_ctrl.register_callbacks(&this);
+            this_mut.info_ctrl.borrow_mut().register_callbacks(&this);
         }
 
         let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
@@ -165,7 +165,7 @@ impl MainController {
             // update position even though the stream
             // is not sync yet for the user to notice
             // the seek request in being handled
-            self.info_ctrl.seek(position);
+            self.info_ctrl.borrow_mut().seek(position);
 
             self.context.as_ref()
                 .expect("MainController::seek no context")
@@ -243,7 +243,7 @@ impl MainController {
                             Some(context.file_name.as_str())
                         );
 
-                        this_mut.info_ctrl.new_media(&context);
+                        this_mut.info_ctrl.borrow_mut().new_media(&context);
                         this_mut.video_ctrl.new_media(&context);
 
                         this_mut.context = Some(context);
@@ -256,10 +256,10 @@ impl MainController {
                             .expect("MainController::listener no context while getting position")
                             .get_position();
 
-                        this_mut.info_ctrl.update_duration(position);
+                        this_mut.info_ctrl.borrow_mut().update_duration(position);
                         this_mut.duration = Some(position);
 
-                        this_mut.info_ctrl.tick(position);
+                        this_mut.info_ctrl.borrow_mut().tick(position, true);
 
                         this_mut.handle_eos();
 
@@ -316,24 +316,31 @@ impl MainController {
                 .expect("MainController::tracker no context while getting position")
                 .get_position();
 
-            if !this_mut.seeking {
-                this_mut.info_ctrl.tick(position);
-            }
-
-            if let Some(duration) = this_mut.duration {
-                if position >= duration {
-                    if !this_mut.seeking {
-                        // this check is necessary as EOS is not sent
+            let is_eos =
+                if let Some(duration) = this_mut.duration {
+                    if position >= duration {
+                        if !this_mut.seeking {
+                            // this check is necessary as EOS is not sent
+                            // in case of a seek after EOS
+                            this_mut.handle_eos();
+                            this_mut.tracker_src = None;
+                            keep_going = false;
+                        }
+                        true
+                    } else if this_mut.seeking {
+                        // this check is necessary as AsyncDone is not sent
                         // in case of a seek after EOS
-                        this_mut.handle_eos();
-                        this_mut.tracker_src = None;
-                        keep_going = false;
+                        this_mut.seeking = false;
+                        true
+                    } else {
+                        false
                     }
-                } else if this_mut.seeking {
-                    // this check is necessary as AsyncDone is not sent
-                    // in case of a seek after EOS
-                    this_mut.seeking = false;
-                }
+                } else {
+                    false
+                };
+
+            if !this_mut.seeking {
+                this_mut.info_ctrl.borrow_mut().tick(position, is_eos);
             }
 
             glib::Continue(this_mut.keep_going && keep_going)
@@ -343,7 +350,7 @@ impl MainController {
     fn open_media(&mut self, filepath: PathBuf) {
         assert_eq!(self.listener_src, None);
 
-        self.info_ctrl.cleanup();
+        self.info_ctrl.borrow_mut().cleanup();
         self.header_bar.set_subtitle("");
 
         let (ctx_tx, ui_rx) = channel();

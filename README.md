@@ -1,6 +1,8 @@
 # media-toc-player [![Build Status](https://travis-ci.org/fengalin/media-toc-player.svg?branch=master)](https://travis-ci.org/fengalin/media-toc-player) [![Build status](https://ci.appveyor.com/api/projects/status/yc1gba3o1h69t3g3?svg=true)](https://ci.appveyor.com/project/fengalin/media-toc-player)
-media-toc-player is a media player with a table of contents which allows seeking
-to a given chapter. It is a simplication of [media-toc](https://github.com/fengalin/media-toc),
+**media-toc-player** is a media player with a table of contents which allows seeking
+to a given chapter and optionally looping on current chapter.
+
+**media-toc-player** is a simplication of [media-toc](https://github.com/fengalin/media-toc),
 an application to create and edit a table of contents from a media file. It is
 primarily developed in Rust on Linux, it can be built on Windows and should also
 work on macOS.
@@ -11,9 +13,8 @@ work on macOS.
 # Todo
 I intend to keep this application simple. These are the modifications that I
 forsee:
-- Allow hiding the chapter's list.
+- Allow hiding the chapters list.
 - Switch to full screen mode.
-- Loop on the selected chapter.
 - Display the cover image on the left for audio files.
 
 # Technologies

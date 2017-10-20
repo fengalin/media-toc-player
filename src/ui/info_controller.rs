@@ -1,7 +1,11 @@
+extern crate cairo;
+
 extern crate gtk;
 use gtk::prelude::*;
 
-use std::rc::Rc;
+extern crate glib;
+
+use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
 use media::{Context, Timestamp};
@@ -23,22 +27,27 @@ pub struct InfoController {
     audio_codec_lbl: gtk::Label,
     video_codec_lbl: gtk::Label,
     duration_lbl: gtk::Label,
+
     timeline_scale: gtk::Scale,
+    repeat_button: gtk::ToggleToolButton,
 
     chapter_treeview: gtk::TreeView,
     chapter_store: gtk::TreeStore,
 
-    thumbnail: Rc<RefCell<Option<ImageSurface>>>,
+    thumbnail: Option<ImageSurface>,
 
     duration: u64,
     chapter_iter: Option<gtk::TreeIter>,
+    repeat_chapter: bool,
+
+    main_ctrl: Option<Weak<RefCell<MainController>>>,
 }
 
 impl InfoController {
-    pub fn new(builder: &gtk::Builder) -> Self {
+    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
-        let mut this = InfoController {
+        let this_rc = Rc::new(RefCell::new(InfoController {
             drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
 
             title_lbl: builder.get_object("title-lbl").unwrap(),
@@ -47,27 +56,47 @@ impl InfoController {
             audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
             video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
+
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
+            repeat_button: builder.get_object("repeat-toolbutton").unwrap(),
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
             chapter_store: builder.get_object("chapters-tree-store").unwrap(),
 
-            thumbnail: Rc::new(RefCell::new(None)),
+            thumbnail: None,
 
             duration: 0,
             chapter_iter: None,
-        };
+            repeat_chapter: false,
 
-        this.cleanup();
+            main_ctrl: None,
+        }));
 
-        this.chapter_treeview.set_model(Some(&this.chapter_store));
-        this.add_chapter_column("Title", TITLE_COL as i32, true);
-        this.add_chapter_column("Start", START_STR_COL as i32, false);
-        this.add_chapter_column("End", END_STR_COL as i32, false);
+        {
+            let mut this = this_rc.borrow_mut();
+            this.cleanup();
 
-        this
+            this.chapter_treeview.set_model(Some(&this.chapter_store));
+            this.add_chapter_column("Title", TITLE_COL as i32, true);
+            this.add_chapter_column("Start", START_STR_COL as i32, false);
+            this.add_chapter_column("End", END_STR_COL as i32, false);
+
+            let this_clone = Rc::clone(&this_rc);
+            this.drawingarea.connect_draw(move |drawingarea, cairo_ctx| {
+                this_clone.borrow()
+                    .draw_thumbnail(drawingarea, cairo_ctx)
+                    .into()
+            });
+
+            let this_clone = Rc::clone(&this_rc);
+            this.repeat_button.connect_clicked(move |button| {
+                this_clone.borrow_mut().repeat_chapter =
+                    button.get_active();
+            });
+        }
+
+        this_rc
     }
-
 
     fn add_chapter_column(&self, title: &str, col_id: i32, can_expand: bool) {
         let col = gtk::TreeViewColumn::new();
@@ -82,7 +111,9 @@ impl InfoController {
         self.chapter_treeview.append_column(&col);
     }
 
-    pub fn register_callbacks(&self, main_ctrl: &Rc<RefCell<MainController>>) {
+    pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
+        self.main_ctrl = Some(Rc::downgrade(&main_ctrl));
+
         // Scale seek
         let main_ctrl_rc = Rc::clone(main_ctrl);
         self.timeline_scale.connect_change_value(move |_, _, value| {
@@ -101,43 +132,42 @@ impl InfoController {
                 main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
             }
         });
+    }
 
+    fn draw_thumbnail(&self,
+        drawingarea: &gtk::DrawingArea,
+        cairo_ctx: &cairo::Context,
+    ) -> Inhibit {
         // Thumbnail draw
-        let thumbnail_weak = Rc::downgrade(&self.thumbnail);
-        self.drawingarea.connect_draw(move |drawing_area, cairo_ctx| {
-            if let Some(thumbnail_rc) = thumbnail_weak.upgrade() {
-                let thumbnail_opt = thumbnail_rc.borrow();
-                if let Some(ref thumbnail) = *thumbnail_opt {
-                    let surface = &thumbnail.surface;
+        if let Some(ref thumbnail) = self.thumbnail {
+            let surface = &thumbnail.surface;
 
-                    let allocation = drawing_area.get_allocation();
-                    let alloc_ratio = f64::from(allocation.width)
-                        / f64::from(allocation.height);
-                    let surface_ratio = f64::from(surface.get_width())
-                        / f64::from(surface.get_height());
-                    let scale = if surface_ratio < alloc_ratio {
-                        f64::from(allocation.height)
-                        / f64::from(surface.get_height())
-                    }
-                    else {
-                        f64::from(allocation.width)
-                        / f64::from(surface.get_width())
-                    };
-                    let x = (
-                            f64::from(allocation.width) / scale - f64::from(surface.get_width())
-                        ).abs() / 2f64;
-                    let y = (
-                        f64::from(allocation.height) / scale - f64::from(surface.get_height())
-                        ).abs() / 2f64;
-
-                    cairo_ctx.scale(scale, scale);
-                    cairo_ctx.set_source_surface(surface, x, y);
-                    cairo_ctx.paint();
-                }
+            let allocation = drawingarea.get_allocation();
+            let alloc_ratio = f64::from(allocation.width)
+                / f64::from(allocation.height);
+            let surface_ratio = f64::from(surface.get_width())
+                / f64::from(surface.get_height());
+            let scale = if surface_ratio < alloc_ratio {
+                f64::from(allocation.height)
+                / f64::from(surface.get_height())
             }
+            else {
+                f64::from(allocation.width)
+                / f64::from(surface.get_width())
+            };
+            let x = (
+                    f64::from(allocation.width) / scale - f64::from(surface.get_width())
+                ).abs() / 2f64;
+            let y = (
+                f64::from(allocation.height) / scale - f64::from(surface.get_height())
+                ).abs() / 2f64;
 
-            Inhibit(true)
-        });
+            cairo_ctx.scale(scale, scale);
+            cairo_ctx.set_source_surface(surface, x, y);
+            cairo_ctx.paint();
+        }
+
+        Inhibit(true)
     }
 
     pub fn new_media(&mut self, context: &Context) {
@@ -145,16 +175,13 @@ impl InfoController {
 
         self.chapter_store.clear();
 
-        let mut has_image = false;
         {
             let mut info = context.info.lock()
                 .expect("Failed to lock media info in InfoController");
 
             if let Some(thumbnail) = info.thumbnail.take() {
                 if let Ok(image) = ImageSurface::from_aligned_image(thumbnail) {
-                    let mut thumbnail_ref = self.thumbnail.borrow_mut();
-                    *thumbnail_ref = Some(image);
-                    has_image = true;
+                    self.thumbnail = Some(image);
                 }
             };
 
@@ -199,7 +226,7 @@ impl InfoController {
             self.chapter_iter = self.chapter_store.get_iter_first();
         }
 
-        if has_image {
+        if self.thumbnail.is_some() {
             self.drawingarea.show();
             self.drawingarea.queue_draw();
         }
@@ -234,7 +261,7 @@ impl InfoController {
         self.audio_codec_lbl.set_text("");
         self.video_codec_lbl.set_text("");
         self.duration_lbl.set_text("00:00.000");
-        *self.thumbnail.borrow_mut() = None;
+        self.thumbnail = None;
         self.chapter_store.clear();
         self.timeline_scale.clear_marks();
         self.timeline_scale.set_value(0f64);
@@ -250,20 +277,35 @@ impl InfoController {
         );
     }
 
-    pub fn tick(&mut self, position: u64) {
+    pub fn tick(&mut self, position: u64, is_eos: bool) {
         self.timeline_scale.set_value(position as f64);
 
         let mut done_with_chapters = false;
 
         if let Some(current_iter) = self.chapter_iter.as_mut() {
-            if position < self.chapter_store.get_value(current_iter, START_COL as i32)
-                    .get::<u64>().unwrap()
+            let current_start =
+                self.chapter_store.get_value(current_iter, START_COL as i32)
+                    .get::<u64>().unwrap();
+            if position < current_start
             {   // before selected chapter
-                // (first chapter must start after the begining of the stream)
+                // (first chapter must start after the beginning of the stream)
                 return;
-            } else if position >= self.chapter_store.get_value(current_iter, END_COL as i32)
+            } else if is_eos
+                || position >= self.chapter_store.get_value(current_iter, END_COL as i32)
                     .get::<u64>().unwrap()
             {   // passed the end of current chapter
+                if self.repeat_chapter {
+                    // seek back to the beginning of the chapter
+                    let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
+                    gtk::idle_add(move || {
+                        let main_ctrl_rc = main_ctrl_weak.upgrade()
+                            .expect("InfoController::tick can't upgrade main_ctrl while repeating chapter");
+                        main_ctrl_rc.borrow_mut().seek(current_start, true); // accurate
+                        glib::Continue(false)
+                    });
+                    return;
+                }
+
                 // unselect current chapter
                 self.chapter_treeview.get_selection()
                     .unselect_iter(current_iter);
