@@ -147,14 +147,14 @@ impl InfoController {
                 / f64::from(allocation.height);
             let surface_ratio = f64::from(surface.get_width())
                 / f64::from(surface.get_height());
-            let scale = if surface_ratio < alloc_ratio {
-                f64::from(allocation.height)
-                / f64::from(surface.get_height())
-            }
-            else {
-                f64::from(allocation.width)
-                / f64::from(surface.get_width())
-            };
+            let scale =
+                if surface_ratio < alloc_ratio {
+                    f64::from(allocation.height)
+                    / f64::from(surface.get_height())
+                } else {
+                    f64::from(allocation.width)
+                    / f64::from(surface.get_width())
+                }.min(1f64);
             let x = (
                     f64::from(allocation.width) / scale - f64::from(surface.get_width())
                 ).abs() / 2f64;
@@ -188,7 +188,17 @@ impl InfoController {
                         self.thumbnail = Some(image);
                     }
                 }
+
+                // show the drawingarea for audio files even when
+                // there is no thumbnail so that we get an area
+                // with the default background, not the black background
+                // of the video widget
+                self.drawingarea.show();
+                self.drawingarea.queue_draw();
+            } else {
+                self.drawingarea.hide();
             }
+
 
             self.title_lbl.set_label(&info.title);
             self.artist_lbl.set_label(&info.artist);
@@ -222,14 +232,6 @@ impl InfoController {
             self.update_marks();
 
             self.chapter_iter = self.chapter_store.get_iter_first();
-        }
-
-        if self.thumbnail.is_some() {
-            self.drawingarea.show();
-            self.drawingarea.queue_draw();
-        }
-        else {
-            self.drawingarea.hide();
         }
     }
 
