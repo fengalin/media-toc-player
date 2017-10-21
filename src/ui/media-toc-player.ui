@@ -60,15 +60,15 @@
           <object class="GtkGrid" id="info-chapter_list-grid">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
-            <property name="margin_left">4</property>
+            <property name="margin_left">5</property>
             <property name="margin_right">4</property>
+            <property name="margin_top">5</property>
             <child>
               <object class="GtkGrid" id="info-grid">
                 <property name="height_request">150</property>
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="valign">start</property>
-                <property name="margin_top">5</property>
                 <property name="hexpand">True</property>
                 <property name="row_spacing">5</property>
                 <property name="column_spacing">10</property>
@@ -248,10 +248,11 @@
             </child>
             <child>
               <object class="GtkTreeView" id="chapter-treeview">
-                <property name="width_request">220</property>
-                <property name="height_request">500</property>
+                <property name="width_request">200</property>
+                <property name="height_request">200</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
+                <property name="margin_top">3</property>
                 <property name="margin_bottom">3</property>
                 <property name="hexpand">True</property>
                 <property name="vexpand">True</property>
