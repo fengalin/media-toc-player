@@ -1,6 +1,6 @@
-extern crate gtk;
 extern crate glib;
 extern crate gstreamer as gst;
+extern crate gtk;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -26,7 +26,7 @@ pub enum ControllerState {
 }
 
 const LISTENER_PERIOD: u32 = 250; // 250 ms ( 4 Hz)
-const TRACKER_PERIOD:  u32 = 40;  //  40 ms (25 Hz)
+const TRACKER_PERIOD: u32 = 40; //  40 ms (25 Hz)
 
 pub struct MainController {
     window: gtk::ApplicationWindow,
@@ -106,14 +106,13 @@ impl MainController {
     }
 
     fn play_pause(&mut self) {
-        let context =
-            match self.context.take() {
-                Some(context) => context,
-                None => {
-                    self.select_media();
-                    return;
-                },
-            };
+        let context = match self.context.take() {
+            Some(context) => context,
+            None => {
+                self.select_media();
+                return;
+            }
+        };
 
         if self.state != ControllerState::EOS {
             match context.get_state() {
@@ -130,11 +129,11 @@ impl MainController {
                     self.remove_tracker();
                     self.state = ControllerState::Paused;
                     self.context = Some(context);
-                },
+                }
                 state => {
                     println!("Can't play/pause in state {:?}", state);
                     self.context = Some(context);
-                },
+                }
             };
         } else {
             // Restart the stream from the begining
@@ -167,17 +166,18 @@ impl MainController {
             // the seek request in being handled
             self.info_ctrl.borrow_mut().seek(position);
 
-            self.context.as_ref()
+            self.context
+                .as_ref()
                 .expect("MainController::seek no context")
                 .seek(position, accurate);
 
-            if self.state == ControllerState::EOS
-            || self.state == ControllerState::Ready
-            {
+            if self.state == ControllerState::EOS || self.state == ControllerState::Ready {
                 if self.state == ControllerState::Ready {
-                    self.context.as_ref()
+                    self.context
+                        .as_ref()
                         .expect("MainController::seek no context")
-                        .play().unwrap();
+                        .play()
+                        .unwrap();
                 }
                 self.register_tracker();
                 self.play_pause_btn.set_icon_name("media-playback-pause");
@@ -215,10 +215,7 @@ impl MainController {
         }
     }
 
-    fn register_listener(&mut self,
-        timeout: u32,
-        ui_rx: Receiver<ContextMessage>,
-    ) {
+    fn register_listener(&mut self, timeout: u32, ui_rx: Receiver<ContextMessage>) {
         if self.listener_src.is_some() {
             return;
         }
@@ -232,16 +229,18 @@ impl MainController {
                 match message {
                     AsyncDone => {
                         this_rc.borrow_mut().seeking = false;
-                    },
+                    }
                     InitDone => {
                         let mut this_mut = this_rc.borrow_mut();
 
-                        let context = this_mut.context.take()
+                        let context = this_mut
+                            .context
+                            .take()
                             .expect("MainController: InitDone but no context available");
 
-                        this_mut.header_bar.set_subtitle(
-                            Some(context.file_name.as_str())
-                        );
+                        this_mut
+                            .header_bar
+                            .set_subtitle(Some(context.file_name.as_str()));
 
                         this_mut.info_ctrl.borrow_mut().new_media(&context);
                         this_mut.video_ctrl.new_media(&context);
@@ -249,10 +248,12 @@ impl MainController {
                         this_mut.context = Some(context);
 
                         this_mut.state = ControllerState::Ready;
-                    },
+                    }
                     Eos => {
                         let mut this_mut = this_rc.borrow_mut();
-                        let position = this_mut.context.as_mut()
+                        let position = this_mut
+                            .context
+                            .as_mut()
                             .expect("MainController::listener no context while getting position")
                             .get_position();
 
@@ -269,7 +270,7 @@ impl MainController {
                         // the context won't send any more Eos nor AsyncDone
                         // after an EOS.
                         keep_going = false;
-                    },
+                    }
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
 
@@ -278,10 +279,12 @@ impl MainController {
                         this_mut.context = None;
                         this_mut.keep_going = false;
                         keep_going = false;
-                    },
+                    }
                 };
 
-                if !keep_going { break; }
+                if !keep_going {
+                    break;
+                }
             }
 
             if !keep_going {
@@ -312,32 +315,33 @@ impl MainController {
 
             let mut this_mut = this_rc.borrow_mut();
 
-            let position = this_mut.context.as_mut()
+            let position = this_mut
+                .context
+                .as_mut()
                 .expect("MainController::tracker no context while getting position")
                 .get_position();
 
-            let is_eos =
-                if let Some(duration) = this_mut.duration {
-                    if position >= duration {
-                        if !this_mut.seeking {
-                            // this check is necessary as EOS is not sent
-                            // in case of a seek after EOS
-                            this_mut.handle_eos();
-                            this_mut.tracker_src = None;
-                            keep_going = false;
-                        }
-                        true
-                    } else if this_mut.seeking {
-                        // this check is necessary as AsyncDone is not sent
+            let is_eos = if let Some(duration) = this_mut.duration {
+                if position >= duration {
+                    if !this_mut.seeking {
+                        // this check is necessary as EOS is not sent
                         // in case of a seek after EOS
-                        this_mut.seeking = false;
-                        false
-                    } else {
-                        false
+                        this_mut.handle_eos();
+                        this_mut.tracker_src = None;
+                        keep_going = false;
                     }
+                    true
+                } else if this_mut.seeking {
+                    // this check is necessary as AsyncDone is not sent
+                    // in case of a seek after EOS
+                    this_mut.seeking = false;
+                    false
                 } else {
                     false
-                };
+                }
+            } else {
+                false
+            };
 
             if !this_mut.seeking {
                 this_mut.info_ctrl.borrow_mut().tick(position, is_eos);
@@ -359,13 +363,10 @@ impl MainController {
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
-        match Context::new(
-            filepath,
-            ctx_tx
-        ) {
+        match Context::new(filepath, ctx_tx) {
             Ok(context) => {
                 self.context = Some(context);
-            },
+            }
             Err(error) => eprintln!("Error opening media: {}", error),
         };
     }

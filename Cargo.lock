@@ -257,7 +257,7 @@ dependencies = [
 [[package]]
 name = "gstreamer"
 version = "0.9.0"
-source = "git+https://github.com/sdroege/gstreamer-rs.git#b24f62877296e731f412ea60a2d416790fab06be"
+source = "git+https://github.com/sdroege/gstreamer-rs.git#342d89dd4496f147808083b85e227abc12f535f4"
 dependencies = [
  "bitflags 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.3.0 (git+https://github.com/gtk-rs/glib.git)",
@@ -426,7 +426,7 @@ dependencies = [
 [[package]]
 name = "pango"
 version = "0.2.0"
-source = "git+https://github.com/gtk-rs/pango#5f7a01c198760de0aba5fb1f20f17ced76de7744"
+source = "git+https://github.com/gtk-rs/pango#ec9ea6fb8f2ac4f31a94d64796420d1e235f54cc"
 dependencies = [
  "bitflags 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.3.0 (git+https://github.com/gtk-rs/glib.git)",

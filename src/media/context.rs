@@ -1,7 +1,6 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, ElementFactory, GstObjectExt, PadExt, QueryView,
-                TocScope, TocEntryType};
+use gstreamer::{BinExt, ElementFactory, GstObjectExt, PadExt, QueryView, TocEntryType, TocScope};
 
 extern crate glib;
 use glib::ObjectExt;
@@ -31,11 +30,15 @@ macro_rules! assign_str_tag(
 
 // The video_sink must be created in the main UI thread
 // as it contains a gtk::Widget
-// GLGTKSink not used because it causes flickerings on Xorg systems.
+// GLGTKSink not used because it causes high CPU usage on some systems.
 lazy_static! {
     static ref VIDEO_SINK: gst::Element =
         ElementFactory::make("gtksink", "video_sink")
-            .expect("Couldn't find GStreamer GTK video sink. Please install gstreamer1-plugins-bad-free-gtk or gstreamer1.0-plugins-bad, depenging on your distribution.");
+            .expect(concat!(
+                r#"Couldn't find GStreamer GTK video sink. Please install "#,
+                r#"gstreamer1-plugins-bad-free-gtk or gstreamer1.0-plugins-bad, "#,
+                r#"depenging on your distribution."#
+            ));
 }
 
 pub enum ContextMessage {
@@ -67,10 +70,7 @@ impl Drop for Context {
 }
 
 impl Context {
-    pub fn new(
-        path: PathBuf,
-        ctx_tx: Sender<ContextMessage>,
-    ) -> Result<Context, String> {
+    pub fn new(path: PathBuf, ctx_tx: Sender<ContextMessage>) -> Result<Context, String> {
         println!("\n\n* Opening {:?}...", path);
 
         let mut ctx = Context {
@@ -96,21 +96,22 @@ impl Context {
 
     pub fn get_video_widget() -> gtk::Widget {
         let widget_val = (*VIDEO_SINK).get_property("widget").unwrap();
-        widget_val.get::<gtk::Widget>()
+        widget_val
+            .get::<gtk::Widget>()
             .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget")
     }
 
     pub fn get_position(&mut self) -> u64 {
         let pipeline = self.pipeline.clone();
-        self.position_element.get_or_insert_with(|| {
-            if let Some(video) = pipeline.get_by_name("video_sink") {
+        self.position_element
+            .get_or_insert_with(|| if let Some(video) = pipeline.get_by_name("video_sink") {
                 video
             } else if let Some(audio) = pipeline.get_by_name("audio_playback_sink") {
                 audio
             } else {
                 panic!("No sink in pipeline");
-            }
-        }).query(self.position_query.get_mut().unwrap());
+            })
+            .query(self.position_query.get_mut().unwrap());
         match self.position_query.view() {
             QueryView::Position(ref position) => position.get().1 as u64,
             _ => unreachable!(),
@@ -119,7 +120,11 @@ impl Context {
 
     pub fn get_duration(&self) -> u64 {
         match self.pipeline.query_duration(gst::Format::Time) {
-            Some(duration) => if duration.is_positive() { duration as u64 } else { 0 },
+            Some(duration) => if duration.is_positive() {
+                duration as u64
+            } else {
+                0
+            },
             None => 0,
         }
     }
@@ -151,17 +156,19 @@ impl Context {
     }
 
     pub fn seek(&self, position: u64, accurate: bool) {
-        let flags = gst::SeekFlags::FLUSH |
-            if accurate { gst::SeekFlags::ACCURATE }
-            else { gst::SeekFlags::KEY_UNIT };
-        self.pipeline.seek_simple(gst::Format::Time, flags, position as i64)
-            .ok().unwrap();
+        let flags = gst::SeekFlags::FLUSH | if accurate {
+            gst::SeekFlags::ACCURATE
+        } else {
+            gst::SeekFlags::KEY_UNIT
+        };
+        self.pipeline
+            .seek_simple(gst::Format::Time, flags, position as i64)
+            .ok()
+            .unwrap();
     }
 
     // TODO: handle errors
-    fn build_pipeline(&mut self,
-        video_sink: gst::Element,
-    ) {
+    fn build_pipeline(&mut self, video_sink: gst::Element) {
         let src = gst::ElementFactory::make("uridecodebin", "input").unwrap();
         let url = match Url::from_file_path(self.path.as_path()) {
             Ok(url) => url.into_string(),
@@ -185,7 +192,8 @@ impl Context {
             // TODO: build only one queue by stream type (audio / video)
             if name.starts_with("audio/") {
                 let is_first = {
-                    let info = &mut info_arc_mtx.lock()
+                    let info = &mut info_arc_mtx
+                        .lock()
                         .expect("Failed to lock media info while initializing audio stream");
                     info.audio_streams.insert(name.to_owned(), caps.clone());
                     let is_first = info.audio_best.is_none();
@@ -199,7 +207,8 @@ impl Context {
                 }
             } else if name.starts_with("video/") {
                 let is_first = {
-                    let info = &mut info_arc_mtx.lock()
+                    let info = &mut info_arc_mtx
+                        .lock()
                         .expect("Failed to lock media info while initializing audio stream");
                     info.video_streams.insert(name.to_owned(), caps.clone());
                     let is_first = info.video_best.is_none();
@@ -215,32 +224,26 @@ impl Context {
         });
     }
 
-    fn build_audio_queue (
-        pipeline: &gst::Pipeline,
-        src_pad: &gst::Pad,
-        audio_sink: &gst::Element,
-    ) {
+    fn build_audio_queue(pipeline: &gst::Pipeline, src_pad: &gst::Pad, audio_sink: &gst::Element) {
         let queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
 
         let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
         let resample = gst::ElementFactory::make("audioresample", None).unwrap();
 
-        let elements = &[&queue, &convert, &resample, &audio_sink];
+        let elements = &[&queue, &convert, &resample, audio_sink];
 
         pipeline.add_many(elements).unwrap();
         gst::Element::link_many(elements).unwrap();
 
-        for e in elements { e.sync_state_with_parent().unwrap(); }
+        for e in elements {
+            e.sync_state_with_parent().unwrap();
+        }
 
         let sink_pad = queue.get_static_pad("sink").unwrap();
         assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
     }
 
-    fn build_video_queue(
-        pipeline: &gst::Pipeline,
-        src_pad: &gst::Pad,
-        video_sink: &gst::Element,
-    ) {
+    fn build_video_queue(pipeline: &gst::Pipeline, src_pad: &gst::Pad, video_sink: &gst::Element) {
         let queue = gst::ElementFactory::make("queue", None).unwrap();
         let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
         let scale = gst::ElementFactory::make("videoscale", None).unwrap();
@@ -249,7 +252,9 @@ impl Context {
         pipeline.add_many(elements).unwrap();
         gst::Element::link_many(elements).unwrap();
 
-        for e in elements { e.sync_state_with_parent().unwrap(); }
+        for e in elements {
+            e.sync_state_with_parent().unwrap();
+        }
 
         let sink_pad = queue.get_static_pad("sink").unwrap();
         assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
@@ -262,42 +267,42 @@ impl Context {
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
-                    ctx_tx.send(ContextMessage::Eos)
+                    ctx_tx
+                        .send(ContextMessage::Eos)
                         .expect("Failed to notify UI");
                     return glib::Continue(false);
-                },
+                }
                 gst::MessageView::Error(err) => {
-                    eprintln!("Error from {}: {} ({:?})",
+                    eprintln!(
+                        "Error from {}: {} ({:?})",
                         msg.get_src().get_path_string(),
-                        err.get_error(), err.get_debug()
+                        err.get_error(),
+                        err.get_debug()
                     );
-                    ctx_tx.send(ContextMessage::FailedToOpenMedia)
+                    ctx_tx
+                        .send(ContextMessage::FailedToOpenMedia)
                         .expect("Failed to notify UI");
                     return glib::Continue(false);
+                }
+                gst::MessageView::AsyncDone(_) => if !init_done {
+                    init_done = true;
+                    ctx_tx
+                        .send(ContextMessage::InitDone)
+                        .expect("Failed to notify UI");
+                } else {
+                    ctx_tx
+                        .send(ContextMessage::AsyncDone)
+                        .expect("Failed to notify UI");
                 },
-                gst::MessageView::AsyncDone(_) => {
-                    if !init_done {
-                        init_done = true;
-                        ctx_tx.send(ContextMessage::InitDone)
-                            .expect("Failed to notify UI");
+                gst::MessageView::Tag(msg_tag) => if !init_done {
+                    Context::add_tags(msg_tag.get_tags(), &info_arc_mtx);
+                },
+                gst::MessageView::Toc(msg_toc) => if !init_done {
+                    let (toc, _) = msg_toc.get_toc();
+                    if toc.get_scope() == TocScope::Global {
+                        Context::add_toc(toc, &info_arc_mtx);
                     } else {
-                        ctx_tx.send(ContextMessage::AsyncDone)
-                            .expect("Failed to notify UI");
-                    }
-                },
-                gst::MessageView::Tag(msg_tag) => {
-                    if !init_done {
-                        Context::add_tags(msg_tag.get_tags(), &info_arc_mtx);
-                    }
-                },
-                gst::MessageView::Toc(msg_toc) => {
-                    if !init_done {
-                        let (toc, _) = msg_toc.get_toc();
-                        if toc.get_scope() == TocScope::Global {
-                            Context::add_toc(toc, &info_arc_mtx);
-                        } else {
-                            println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
-                        }
+                        println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
                     }
                 },
                 _ => (),
@@ -308,7 +313,8 @@ impl Context {
     }
 
     fn add_tags(tags: gst::TagList, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
-        let info = &mut info_arc_mtx.lock()
+        let info = &mut info_arc_mtx
+            .lock()
             .expect("Failed to lock media info while reading tag data");
         assign_str_tag!(info.title, tags, gst::tags::Title);
         assign_str_tag!(info.artist, tags, gst::tags::Artist);
@@ -322,9 +328,7 @@ impl Context {
             if let Some(sample) = image_tag.get() {
                 if let Some(buffer) = sample.get_buffer() {
                     if let Some(map) = buffer.map_readable() {
-                        info.thumbnail = AlignedImage::from_uknown_buffer(
-                                map.as_slice()
-                            ).ok();
+                        info.thumbnail = AlignedImage::from_uknown_buffer(map.as_slice()).ok();
                     }
                 }
             }
@@ -332,7 +336,8 @@ impl Context {
     }
 
     fn add_toc(toc: gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
-        let info = &mut info_arc_mtx.lock()
+        let info = &mut info_arc_mtx
+            .lock()
             .expect("Failed to lock media info while reading toc data");
         if info.chapters.is_empty() {
             // chapters not retrieved yet
@@ -355,7 +360,7 @@ impl Context {
                                     sub_entry.get_uid(),
                                     &title,
                                     Timestamp::from_signed_nano(start),
-                                    Timestamp::from_signed_nano(stop)
+                                    Timestamp::from_signed_nano(stop),
                                 ));
                             }
                         } /*else {
