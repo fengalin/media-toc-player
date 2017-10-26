@@ -4,10 +4,10 @@ to a given chapter and optionally looping on current chapter.
 
 **media-toc-player** is a simplication of [media-toc](https://github.com/fengalin/media-toc),
 an application to create and edit a table of contents from a media file. It is
-primarily developed in Rust on Linux, it can be built on Windows and should also
+primarily developed in Rust on Linux, it runs on Windows and should also
 work on macOS.
 
-## <a name='ui'></a>Screenshots
+## <a name='ui'></a>Screenshot
 ![media-toc-player UI Video](assets/media-toc-player_video.png)
 
 # Todo
@@ -48,7 +48,7 @@ sudo dnf install gtk3-devel glib2-devel gstreamer1-devel gstreamer1-plugins-base
 sudo apt-get install libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
 ```
 
-### MacOS
+### macOS
 *Needs confirmation*
 ```
 brew install gtk+3 gstreamer-1.0-devel gstreamer-1.0-plugins-good gstreamer-1.0-plugins-bad
@@ -62,8 +62,8 @@ Note: for a 32bits system, use `mingw-w64-i686-...`
 pacman -S mingw-w64-x86_64-toolchain base-devel mingw-w64-x86_64-gtk3 \
     mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base
 ```
-For the execution, you will also need (opencv seems necessary to play a video,
-anyone knows which package can pull it?):
+For the execution, you will also need at least (other packages might be
+necessary for specific codecs):
 ```
 pacman -S mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
     mingw-w64-x86_64-gst-plugins-ugly
@@ -72,7 +72,7 @@ pacman -S mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
 - Launch the [rustup installer](https://www.rustup.rs/).
 When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
 `i686-pc-windows-gnu` for a 32bits system), then select `nightly`.
-- From a MSYS2 shell
+- From a MSYS2 mingw shell
   - add cargo to the `PATH`:
   ```
   echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> .bashrc
