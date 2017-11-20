@@ -38,7 +38,6 @@ pub struct MainController {
 
     context: Option<Context>,
     state: ControllerState,
-    duration: Option<u64>, // duration is accurately known at eos
     seeking: bool,
 
     this_opt: Option<Rc<RefCell<MainController>>>,
@@ -59,7 +58,6 @@ impl MainController {
 
             context: None,
             state: ControllerState::Stopped,
-            duration: None,
             seeking: false,
 
             this_opt: None,
@@ -154,7 +152,6 @@ impl MainController {
         self.play_pause_btn.set_icon_name("media-playback-start");
 
         self.state = ControllerState::Stopped;
-        self.duration = None;
     }
 
     pub fn seek(&mut self, position: u64, accurate: bool) {
@@ -204,11 +201,6 @@ impl MainController {
         file_dlg.close();
     }
 
-    fn handle_eos(&mut self) {
-        self.play_pause_btn.set_icon_name("media-playback-start");
-        self.state = ControllerState::EOS;
-    }
-
     fn remove_listener(&mut self) {
         if let Some(source_id) = self.listener_src.take() {
             glib::source_remove(source_id);
@@ -231,53 +223,47 @@ impl MainController {
                         this_rc.borrow_mut().seeking = false;
                     }
                     InitDone => {
-                        let mut this_mut = this_rc.borrow_mut();
+                        let mut this = this_rc.borrow_mut();
 
-                        let context = this_mut
+                        let context = this
                             .context
                             .take()
                             .expect("MainController: InitDone but no context available");
 
-                        this_mut
+                        this
                             .header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
 
-                        this_mut.info_ctrl.borrow_mut().new_media(&context);
-                        this_mut.video_ctrl.new_media(&context);
+                        this.info_ctrl.borrow_mut().new_media(&context);
+                        this.video_ctrl.new_media(&context);
 
-                        this_mut.context = Some(context);
+                        this.context = Some(context);
 
-                        this_mut.state = ControllerState::Ready;
+                        this.state = ControllerState::Ready;
                     }
                     Eos => {
-                        let mut this_mut = this_rc.borrow_mut();
-                        let position = this_mut
+                        let mut this = this_rc.borrow_mut();
+                        let position = this
                             .context
                             .as_mut()
                             .expect("MainController::listener no context while getting position")
                             .get_position();
 
-                        this_mut.info_ctrl.borrow_mut().update_duration(position);
-                        this_mut.duration = Some(position);
+                        this.info_ctrl.borrow_mut().tick(position, true);
 
-                        this_mut.info_ctrl.borrow_mut().tick(position, true);
+                        this.play_pause_btn.set_icon_name("media-playback-start");
+                        this.state = ControllerState::EOS;
 
-                        this_mut.handle_eos();
-
-                        // Remove listener and tracker.
-                        // Note: tracker will be register again in case of
-                        // a seek. Listener is of no use anymore because
-                        // the context won't send any more Eos nor AsyncDone
-                        // after an EOS.
-                        keep_going = false;
+                        // The tracker will be register again in case of a seek
+                        this.remove_tracker();
                     }
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
 
-                        let mut this_mut = this_rc.borrow_mut();
+                        let mut this = this_rc.borrow_mut();
 
-                        this_mut.context = None;
-                        this_mut.keep_going = false;
+                        this.context = None;
+                        this.keep_going = false;
                         keep_going = false;
                     }
                 };
@@ -288,9 +274,9 @@ impl MainController {
             }
 
             if !keep_going {
-                let mut this_mut = this_rc.borrow_mut();
-                this_mut.listener_src = None;
-                this_mut.tracker_src = None;
+                let mut this = this_rc.borrow_mut();
+                this.listener_src = None;
+                this.tracker_src = None;
             }
 
             glib::Continue(keep_going)
@@ -311,43 +297,16 @@ impl MainController {
         let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
 
         self.tracker_src = Some(gtk::timeout_add(TRACKER_PERIOD, move || {
-            let mut keep_going = true;
+            let mut this = this_rc.borrow_mut();
 
-            let mut this_mut = this_rc.borrow_mut();
-
-            let position = this_mut
-                .context
-                .as_mut()
-                .expect("MainController::tracker no context while getting position")
-                .get_position();
-
-            let is_eos = if let Some(duration) = this_mut.duration {
-                if position >= duration {
-                    if !this_mut.seeking {
-                        // this check is necessary as EOS is not sent
-                        // in case of a seek after EOS
-                        this_mut.handle_eos();
-                        this_mut.tracker_src = None;
-                        keep_going = false;
-                    }
-                    true
-                } else if this_mut.seeking {
-                    // this check is necessary as AsyncDone is not sent
-                    // in case of a seek after EOS
-                    this_mut.seeking = false;
-                    false
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
-
-            if !this_mut.seeking {
-                this_mut.info_ctrl.borrow_mut().tick(position, is_eos);
+            if !this.seeking {
+                let position = this.context.as_mut()
+                    .expect("MainController::tracker no context while getting position")
+                    .get_position();
+                this.info_ctrl.borrow_mut().tick(position, false);
             }
 
-            glib::Continue(this_mut.keep_going && keep_going)
+            glib::Continue(this.keep_going)
         }));
     }
 
