@@ -6,7 +6,6 @@ authors = ["fengalin <fengalin@free.fr>"]
 [dependencies]
 image = "^0"
 lazy_static = "^0"
-url = "^1"
 
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }
 gtk = { git = "https://github.com/gtk-rs/gtk.git", features = ["v3_10"] }

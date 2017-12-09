@@ -26,6 +26,7 @@ pub struct InfoController {
     container_lbl: gtk::Label,
     audio_codec_lbl: gtk::Label,
     video_codec_lbl: gtk::Label,
+    position_lbl: gtk::Label,
     duration_lbl: gtk::Label,
 
     timeline_scale: gtk::Scale,
@@ -55,6 +56,7 @@ impl InfoController {
             container_lbl: builder.get_object("container-lbl").unwrap(),
             audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
             video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
+            position_lbl: builder.get_object("position-lbl").unwrap(),
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
 
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
@@ -268,6 +270,7 @@ impl InfoController {
         self.container_lbl.set_text("");
         self.audio_codec_lbl.set_text("");
         self.video_codec_lbl.set_text("");
+        self.position_lbl.set_text("00:00.000");
         self.duration_lbl.set_text("00:00.000");
         self.thumbnail = None;
         self.chapter_store.clear();
@@ -290,6 +293,7 @@ impl InfoController {
 
     pub fn tick(&mut self, position: u64, is_eos: bool) {
         self.timeline_scale.set_value(position as f64);
+        self.position_lbl.set_text(&Timestamp::format(position, false));
 
         let mut done_with_chapters = false;
 

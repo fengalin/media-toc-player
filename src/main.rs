@@ -9,8 +9,6 @@ extern crate gtk;
 #[macro_use]
 extern crate lazy_static;
 
-extern crate url;
-
 use gtk::Builder;
 
 mod ui;
