@@ -19,6 +19,8 @@ const START_STR_COL: u32 = 4;
 const END_STR_COL: u32 = 5;
 
 pub struct InfoController {
+    info_container: gtk::Grid,
+
     drawingarea: gtk::DrawingArea,
 
     title_lbl: gtk::Label,
@@ -31,6 +33,7 @@ pub struct InfoController {
 
     timeline_scale: gtk::Scale,
     repeat_button: gtk::ToggleToolButton,
+    show_chapters_button: gtk::ToggleButton,
 
     chapter_treeview: gtk::TreeView,
     chapter_store: gtk::TreeStore,
@@ -49,6 +52,8 @@ impl InfoController {
         // need a RefCell because the callbacks will use immutable versions of ac
         // when the UI controllers will get a mutable version from time to time
         let this_rc = Rc::new(RefCell::new(InfoController {
+            info_container: builder.get_object("info-chapter_list-grid").unwrap(),
+
             drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
 
             title_lbl: builder.get_object("title-lbl").unwrap(),
@@ -61,6 +66,7 @@ impl InfoController {
 
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
             repeat_button: builder.get_object("repeat-toolbutton").unwrap(),
+            show_chapters_button: builder.get_object("show_chapters-toggle").unwrap(),
 
             chapter_treeview: builder.get_object("chapter-treeview").unwrap(),
             chapter_store: builder.get_object("chapters-tree-store").unwrap(),
@@ -93,6 +99,19 @@ impl InfoController {
             let this_clone = Rc::clone(&this_rc);
             this.repeat_button.connect_clicked(move |button| {
                 this_clone.borrow_mut().repeat_chapter = button.get_active();
+            });
+
+            let this_clone = Rc::clone(&this_rc);
+            this.show_chapters_button.connect_toggled(move |toggle_button| {
+                if toggle_button.get_active() {
+                    this_clone.borrow()
+                        .info_container
+                            .show();
+                } else {
+                    this_clone.borrow()
+                        .info_container
+                            .hide();
+                }
             });
         }
 

@@ -47,14 +47,14 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(builder: gtk::Builder) -> Rc<RefCell<Self>> {
+    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
 
-            video_ctrl: VideoController::new(&builder),
-            info_ctrl: InfoController::new(&builder),
+            video_ctrl: VideoController::new(builder),
+            info_ctrl: InfoController::new(builder),
 
             context: None,
             state: ControllerState::Stopped,
