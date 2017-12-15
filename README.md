@@ -13,7 +13,6 @@ work on macOS.
 # Todo
 I intend to keep this application simple. These are the modifications that I
 forsee:
-- Allow hiding the chapters list.
 - Switch to full screen mode.
 - Select the video / audio stream to play.
 
