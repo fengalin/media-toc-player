@@ -112,23 +112,17 @@ impl Context {
             })
             .query(self.position_query.get_mut().unwrap());
         match self.position_query.view() {
-            QueryView::Position(ref position) => position.get_result().to_value() as u64,
+            QueryView::Position(ref position) => position.get_result().get_value() as u64,
             _ => unreachable!(),
         }
     }
 
     pub fn get_duration(&self) -> u64 {
-        match self.pipeline.query_duration(gst::Format::Time) {
-            Some(duration) => {
-                let duration = duration.to_value();
-                if duration.is_positive() {
-                    duration as u64
-                } else {
-                    0
-                }
-            }
-            None => 0,
-        }
+        self.pipeline
+            .query_duration::<gst::ClockTime>()
+            .unwrap_or(0.into())
+            .nanoseconds()
+            .unwrap()
     }
 
     pub fn get_state(&self) -> gst::State {
@@ -279,7 +273,11 @@ impl Context {
                 gst::MessageView::Error(err) => {
                     eprintln!(
                         "Error from {}: {} ({:?})",
-                        msg.get_src().get_path_string(),
+                        msg.get_src().map(|s| s.get_path_string()).unwrap_or_else(
+                            || {
+                                String::from("None")
+                            },
+                        ),
                         err.get_error(),
                         err.get_debug()
                     );
