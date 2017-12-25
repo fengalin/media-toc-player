@@ -103,7 +103,7 @@ impl MainController {
         self.window.show_all();
     }
 
-    fn play_pause(&mut self) {
+    pub fn play_pause(&mut self) {
         let context = match self.context.take() {
             Some(context) => context,
             None => {
