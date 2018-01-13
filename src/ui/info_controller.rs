@@ -102,17 +102,14 @@ impl InfoController {
             });
 
             let this_clone = Rc::clone(&this_rc);
-            this.show_chapters_button.connect_toggled(move |toggle_button| {
-                if toggle_button.get_active() {
-                    this_clone.borrow()
-                        .info_container
-                            .show();
-                } else {
-                    this_clone.borrow()
-                        .info_container
-                            .hide();
-                }
-            });
+            this.show_chapters_button
+                .connect_toggled(move |toggle_button| {
+                    if toggle_button.get_active() {
+                        this_clone.borrow().info_container.show();
+                    } else {
+                        this_clone.borrow().info_container.hide();
+                    }
+                });
         }
 
         this_rc
@@ -221,7 +218,6 @@ impl InfoController {
                 self.drawingarea.hide();
             }
 
-
             self.title_lbl.set_label(&info.title);
             self.artist_lbl.set_label(&info.artist);
             self.container_lbl.set_label(if !info.container.is_empty() {
@@ -312,7 +308,8 @@ impl InfoController {
 
     pub fn tick(&mut self, position: u64, is_eos: bool) {
         self.timeline_scale.set_value(position as f64);
-        self.position_lbl.set_text(&Timestamp::format(position, false));
+        self.position_lbl
+            .set_text(&Timestamp::format(position, false));
 
         let mut done_with_chapters = false;
 

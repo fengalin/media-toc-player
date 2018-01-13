@@ -26,10 +26,11 @@ impl VideoController {
 
     pub fn register_callbacks(&self, main_ctrl: &Rc<RefCell<MainController>>) {
         let main_ctrl_clone = Rc::clone(main_ctrl);
-        self.video_widget.connect_button_press_event(move |_, _event_button| {
-            main_ctrl_clone.borrow_mut().play_pause();
-            Inhibit(false)
-        });
+        self.video_widget
+            .connect_button_press_event(move |_, _event_button| {
+                main_ctrl_clone.borrow_mut().play_pause();
+                Inhibit(false)
+            });
     }
 
     pub fn new_media(&mut self, context: &Context) {

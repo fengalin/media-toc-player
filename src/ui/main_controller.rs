@@ -225,13 +225,11 @@ impl MainController {
                     InitDone => {
                         let mut this = this_rc.borrow_mut();
 
-                        let context = this
-                            .context
+                        let context = this.context
                             .take()
                             .expect("MainController: InitDone but no context available");
 
-                        this
-                            .header_bar
+                        this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
 
                         this.info_ctrl.borrow_mut().new_media(&context);
@@ -243,8 +241,7 @@ impl MainController {
                     }
                     Eos => {
                         let mut this = this_rc.borrow_mut();
-                        let position = this
-                            .context
+                        let position = this.context
                             .as_mut()
                             .expect("MainController::listener no context while getting position")
                             .get_position();
@@ -300,7 +297,8 @@ impl MainController {
             let mut this = this_rc.borrow_mut();
 
             if !this.seeking {
-                let position = this.context.as_mut()
+                let position = this.context
+                    .as_mut()
                     .expect("MainController::tracker no context while getting position")
                     .get_position();
                 this.info_ctrl.borrow_mut().tick(position, false);

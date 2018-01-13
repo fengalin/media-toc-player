@@ -1,7 +1,7 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, ClockTime, ElementFactory, GstObjectExt, PadExt, QueryView,
-                TocEntryType, TocScope};
+use gstreamer::{BinExt, ClockTime, ElementFactory, GstObjectExt, PadExt, QueryView, TocEntryType,
+                TocScope};
 
 extern crate glib;
 use glib::ObjectExt;
@@ -103,12 +103,14 @@ impl Context {
     pub fn get_position(&mut self) -> u64 {
         let pipeline = self.pipeline.clone();
         self.position_element
-            .get_or_insert_with(|| if let Some(video) = pipeline.get_by_name("video_sink") {
-                video
-            } else if let Some(audio) = pipeline.get_by_name("audio_playback_sink") {
-                audio
-            } else {
-                panic!("No sink in pipeline");
+            .get_or_insert_with(|| {
+                if let Some(video) = pipeline.get_by_name("video_sink") {
+                    video
+                } else if let Some(audio) = pipeline.get_by_name("audio_playback_sink") {
+                    audio
+                } else {
+                    panic!("No sink in pipeline");
+                }
             })
             .query(self.position_query.get_mut().unwrap());
         match self.position_query.view() {
@@ -166,10 +168,9 @@ impl Context {
     // TODO: handle errors
     fn build_pipeline(&mut self, video_sink: gst::Element) {
         let file_src = gst::ElementFactory::make("filesrc", None).unwrap();
-        file_src.set_property(
-            "location",
-            &gst::Value::from(self.path.to_str().unwrap())
-        ).unwrap();
+        file_src
+            .set_property("location", &gst::Value::from(self.path.to_str().unwrap()))
+            .unwrap();
 
         let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
 
@@ -273,11 +274,9 @@ impl Context {
                 gst::MessageView::Error(err) => {
                     eprintln!(
                         "Error from {}: {} ({:?})",
-                        msg.get_src().map(|s| s.get_path_string()).unwrap_or_else(
-                            || {
-                                String::from("None")
-                            },
-                        ),
+                        msg.get_src()
+                            .map(|s| s.get_path_string(),)
+                            .unwrap_or_else(|| String::from("None"),),
                         err.get_error(),
                         err.get_debug()
                     );
