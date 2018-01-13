@@ -120,7 +120,7 @@ impl Context {
     pub fn get_duration(&self) -> u64 {
         self.pipeline
             .query_duration::<gst::ClockTime>()
-            .unwrap_or(0.into())
+            .unwrap_or_else(|| 0.into())
             .nanoseconds()
             .unwrap()
     }
@@ -297,12 +297,12 @@ impl Context {
                         .expect("Failed to notify UI");
                 },
                 gst::MessageView::Tag(msg_tag) => if !init_done {
-                    Context::add_tags(msg_tag.get_tags(), &info_arc_mtx);
+                    Context::add_tags(&msg_tag.get_tags(), &info_arc_mtx);
                 },
                 gst::MessageView::Toc(msg_toc) => if !init_done {
                     let (toc, _) = msg_toc.get_toc();
                     if toc.get_scope() == TocScope::Global {
-                        Context::add_toc(toc, &info_arc_mtx);
+                        Context::add_toc(&toc, &info_arc_mtx);
                     } else {
                         println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
                     }
@@ -314,7 +314,7 @@ impl Context {
         });
     }
 
-    fn add_tags(tags: gst::TagList, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
+    fn add_tags(tags: &gst::TagList, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
         let info = &mut info_arc_mtx
             .lock()
             .expect("Failed to lock media info while reading tag data");
@@ -337,7 +337,7 @@ impl Context {
         }
     }
 
-    fn add_toc(toc: gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
+    fn add_toc(toc: &gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
         let info = &mut info_arc_mtx
             .lock()
             .expect("Failed to lock media info while reading toc data");
