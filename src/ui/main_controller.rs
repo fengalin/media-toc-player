@@ -311,6 +311,7 @@ impl MainController {
     fn open_media(&mut self, filepath: PathBuf) {
         assert_eq!(self.listener_src, None);
 
+        self.video_ctrl.cleanup();
         self.info_ctrl.borrow_mut().cleanup();
         self.header_bar.set_subtitle("");
 
