@@ -14,7 +14,7 @@ use gtk::prelude::*;
 use media::{Context, ContextMessage};
 use media::ContextMessage::*;
 
-use super::{InfoController, VideoController};
+use super::{InfoController, StreamsController, VideoController};
 
 #[derive(Clone, PartialEq)]
 pub enum ControllerState {
@@ -35,6 +35,7 @@ pub struct MainController {
 
     video_ctrl: VideoController,
     info_ctrl: Rc<RefCell<InfoController>>,
+    streams_ctrl: Rc<RefCell<StreamsController>>,
 
     context: Option<Context>,
     state: ControllerState,
@@ -55,6 +56,7 @@ impl MainController {
 
             video_ctrl: VideoController::new(builder),
             info_ctrl: InfoController::new(builder),
+            streams_ctrl: StreamsController::new(builder),
 
             context: None,
             state: ControllerState::Stopped,
@@ -86,8 +88,9 @@ impl MainController {
             // TODO: add key bindings to seek by steps
             // play/pause, etc.
 
-            this_mut.video_ctrl.register_callbacks(&this);
-            this_mut.info_ctrl.borrow_mut().register_callbacks(&this);
+            VideoController::register_callbacks(&this_mut.video_ctrl, &this);
+            InfoController::register_callbacks(&this_mut.info_ctrl, &this);
+            StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
         }
 
         let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
@@ -183,6 +186,13 @@ impl MainController {
         }
     }
 
+    pub fn select_streams(&mut self, stream_ids: &Vec<String>) {
+        /*self.context.as_ref()
+            .expect("MainController::select_streams no context")
+            .select_streams(stream_ids);
+        */
+    }
+
     fn select_media(&mut self) {
         self.stop();
 
@@ -231,7 +241,7 @@ impl MainController {
 
                         this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
-
+                        this.streams_ctrl.borrow_mut().new_media(&context);
                         this.info_ctrl.borrow_mut().new_media(&context);
                         this.video_ctrl.new_media(&context);
 

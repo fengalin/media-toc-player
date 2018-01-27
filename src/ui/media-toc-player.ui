@@ -2,27 +2,6 @@
 <!-- Generated with glade 3.20.2 -->
 <interface>
   <requires lib="gtk+" version="3.10"/>
-  <object class="GtkTreeStore" id="chapters-tree-store">
-    <columns>
-      <!-- column-name Id -->
-      <column type="gint"/>
-      <!-- column-name Start -->
-      <column type="guint64"/>
-      <!-- column-name End -->
-      <column type="guint64"/>
-      <!-- column-name Title -->
-      <column type="gchararray"/>
-      <!-- column-name StartStr -->
-      <column type="gchararray"/>
-      <!-- column-name EndStr -->
-      <column type="gchararray"/>
-    </columns>
-  </object>
-  <object class="GtkImage" id="repeat-image">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="icon_name">media-playlist-repeat</property>
-  </object>
   <object class="GtkApplicationWindow" id="application-window">
     <property name="width_request">1100</property>
     <property name="height_request">700</property>
@@ -247,6 +226,7 @@
                     <property name="model">chapters-tree-store</property>
                     <property name="search_column">0</property>
                     <property name="enable_grid_lines">horizontal</property>
+                    <property name="activate_on_single_click">True</property>
                     <child internal-child="selection">
                       <object class="GtkTreeSelection"/>
                     </child>
@@ -262,26 +242,40 @@
           <packing>
             <property name="left_attach">4</property>
             <property name="top_attach">0</property>
+            <property name="height">2</property>
           </packing>
         </child>
         <child>
-          <object class="GtkBox" id="video-container">
+          <object class="GtkBox" id="timeline-play_pause-box">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
+            <property name="valign">end</property>
             <property name="hexpand">True</property>
-            <property name="vexpand">True</property>
-            <property name="orientation">vertical</property>
             <child>
-              <placeholder/>
+              <object class="GtkScale" id="timeline-scale">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="valign">end</property>
+                <property name="hexpand">True</property>
+                <property name="show_fill_level">True</property>
+                <property name="draw_value">False</property>
+                <property name="value_pos">left</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
             </child>
             <child>
-              <object class="GtkDrawingArea" id="thumbnail-drawingarea">
-                <property name="sensitive">False</property>
-                <property name="app_paintable">True</property>
+              <object class="GtkLabel" id="position-lbl">
+                <property name="visible">True</property>
                 <property name="can_focus">False</property>
-                <property name="no_show_all">True</property>
-                <property name="hexpand">True</property>
-                <property name="vexpand">True</property>
+                <property name="label" translatable="yes">00:00.000</property>
+                <property name="wrap">True</property>
+                <property name="selectable">True</property>
+                <property name="width_chars">11</property>
+                <property name="track_visited_links">False</property>
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -290,35 +284,80 @@
               </packing>
             </child>
             <child>
-              <object class="GtkBox" id="timeline-play_pause-box">
+              <object class="GtkToolbar" id="playback-toolbar">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
-                <property name="hexpand">True</property>
+                <property name="halign">end</property>
+                <property name="valign">end</property>
+                <property name="toolbar_style">icons</property>
+                <property name="show_arrow">False</property>
                 <child>
-                  <object class="GtkScale" id="timeline-scale">
+                  <object class="GtkToolButton" id="play_pause-toolbutton">
                     <property name="visible">True</property>
-                    <property name="can_focus">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">end</property>
                     <property name="valign">end</property>
-                    <property name="hexpand">True</property>
-                    <property name="show_fill_level">True</property>
-                    <property name="draw_value">False</property>
-                    <property name="value_pos">left</property>
+                    <property name="visible_vertical">False</property>
+                    <property name="label" translatable="yes">Play / Pause</property>
+                    <property name="icon_name">media-playback-start</property>
                   </object>
                   <packing>
-                    <property name="expand">True</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
+                    <property name="expand">False</property>
+                    <property name="homogeneous">True</property>
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkLabel" id="position-lbl">
+                  <object class="GtkToggleToolButton" id="repeat-toolbutton">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="label" translatable="yes">00:00.000</property>
-                    <property name="wrap">True</property>
-                    <property name="selectable">True</property>
-                    <property name="width_chars">11</property>
-                    <property name="track_visited_links">False</property>
+                    <property name="label" translatable="yes">Repeat Chapter</property>
+                    <property name="icon_widget">repeat-image</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="homogeneous">True</property>
+                  </packing>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="pack_type">end</property>
+                <property name="position">2</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="left_attach">0</property>
+            <property name="top_attach">1</property>
+            <property name="width">4</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkStack" id="display_streams-stack">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="hexpand">True</property>
+            <property name="vexpand">True</property>
+            <property name="transition_type">slide-left-right</property>
+            <child>
+              <object class="GtkBox" id="video-container">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+                <property name="orientation">vertical</property>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <object class="GtkDrawingArea" id="thumbnail-drawingarea">
+                    <property name="sensitive">False</property>
+                    <property name="app_paintable">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="no_show_all">True</property>
+                    <property name="hexpand">True</property>
+                    <property name="vexpand">True</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -326,54 +365,123 @@
                     <property name="position">1</property>
                   </packing>
                 </child>
+              </object>
+              <packing>
+                <property name="name">display</property>
+                <property name="title" translatable="yes">display</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkBox" id="streams-box">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+                <property name="orientation">vertical</property>
                 <child>
-                  <object class="GtkToolbar" id="playback-toolbar">
+                  <object class="GtkLabel" id="video_streams-lbl">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="halign">end</property>
-                    <property name="valign">end</property>
-                    <property name="toolbar_style">icons</property>
-                    <property name="show_arrow">False</property>
-                    <child>
-                      <object class="GtkToolButton" id="play_pause-toolbutton">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="halign">end</property>
-                        <property name="valign">end</property>
-                        <property name="visible_vertical">False</property>
-                        <property name="label" translatable="yes">Play / Pause</property>
-                        <property name="icon_name">media-playback-start</property>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="homogeneous">True</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkToggleToolButton" id="repeat-toolbutton">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">Repeat Chapter</property>
-                        <property name="icon_widget">repeat-image</property>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="homogeneous">True</property>
-                      </packing>
-                    </child>
+                    <property name="halign">start</property>
+                    <property name="margin_top">10</property>
+                    <property name="label" translatable="yes">Video Streams</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
-                    <property name="fill">False</property>
-                    <property name="pack_type">end</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkTreeView" id="video_streams-treeview">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="model">video_streams-liststore</property>
+                    <property name="rules_hint">True</property>
+                    <property name="search_column">0</property>
+                    <property name="enable_grid_lines">horizontal</property>
+                    <property name="activate_on_single_click">True</property>
+                    <child internal-child="selection">
+                      <object class="GtkTreeSelection"/>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="audio_streams-lbl">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="margin_top">10</property>
+                    <property name="label" translatable="yes">Audio Streams</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
                     <property name="position">2</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkTreeView" id="audio_streams-treeview">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="model">audio_streams-liststore</property>
+                    <property name="rules_hint">True</property>
+                    <property name="search_column">0</property>
+                    <property name="enable_grid_lines">horizontal</property>
+                    <property name="activate_on_single_click">True</property>
+                    <child internal-child="selection">
+                      <object class="GtkTreeSelection"/>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">3</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="text_streams-lbl">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="margin_top">10</property>
+                    <property name="label" translatable="yes">Text Streams</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">4</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkTreeView" id="text_streams-treeview">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="model">text_streams-liststore</property>
+                    <property name="rules_hint">True</property>
+                    <property name="search_column">0</property>
+                    <property name="enable_grid_lines">horizontal</property>
+                    <property name="activate_on_single_click">True</property>
+                    <child internal-child="selection">
+                      <object class="GtkTreeSelection"/>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">5</property>
                   </packing>
                 </child>
               </object>
               <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="position">2</property>
+                <property name="name">streams</property>
+                <property name="title" translatable="yes">streams</property>
+                <property name="position">1</property>
               </packing>
             </child>
           </object>
@@ -388,6 +496,45 @@
     <child type="titlebar">
       <placeholder/>
     </child>
+  </object>
+  <object class="GtkListStore" id="audio_streams-liststore">
+    <columns>
+      <!-- column-name stream_id_full -->
+      <column type="gchararray"/>
+      <!-- column-name stream_id_display -->
+      <column type="gchararray"/>
+      <!-- column-name language -->
+      <column type="gchararray"/>
+      <!-- column-name codec -->
+      <column type="gchararray"/>
+      <!-- column-name comment -->
+      <column type="gchararray"/>
+      <!-- column-name rate -->
+      <column type="gint"/>
+      <!-- column-name channels -->
+      <column type="gint"/>
+    </columns>
+  </object>
+  <object class="GtkTreeStore" id="chapters-tree-store">
+    <columns>
+      <!-- column-name Id -->
+      <column type="gint"/>
+      <!-- column-name Start -->
+      <column type="guint64"/>
+      <!-- column-name End -->
+      <column type="guint64"/>
+      <!-- column-name Title -->
+      <column type="gchararray"/>
+      <!-- column-name StartStr -->
+      <column type="gchararray"/>
+      <!-- column-name EndStr -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkImage" id="repeat-image">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">media-playlist-repeat</property>
   </object>
   <object class="GtkImage" id="show_chapters-image">
     <property name="visible">True</property>
@@ -427,5 +574,57 @@
         <property name="position">1</property>
       </packing>
     </child>
+    <child>
+      <object class="GtkToggleButton" id="streams-toggle">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="receives_default">True</property>
+        <property name="image">streams-image</property>
+        <property name="always_show_image">True</property>
+      </object>
+      <packing>
+        <property name="pack_type">end</property>
+        <property name="position">2</property>
+      </packing>
+    </child>
+  </object>
+  <object class="GtkImage" id="streams-image">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="stock">gtk-justify-fill</property>
+  </object>
+  <object class="GtkListStore" id="text_streams-liststore">
+    <columns>
+      <!-- column-name stream_id_full -->
+      <column type="gchararray"/>
+      <!-- column-name stream_id_display -->
+      <column type="gchararray"/>
+      <!-- column-name language -->
+      <column type="gchararray"/>
+      <!-- column-name codec -->
+      <column type="gchararray"/>
+      <!-- column-name comment -->
+      <column type="gchararray"/>
+      <!-- column-name format -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkListStore" id="video_streams-liststore">
+    <columns>
+      <!-- column-name stream_id_full -->
+      <column type="gchararray"/>
+      <!-- column-name stream_id_display -->
+      <column type="gchararray"/>
+      <!-- column-name language -->
+      <column type="gchararray"/>
+      <!-- column-name codec -->
+      <column type="gchararray"/>
+      <!-- column-name comment -->
+      <column type="gchararray"/>
+      <!-- column-name wdth -->
+      <column type="gint"/>
+      <!-- column-name height -->
+      <column type="gint"/>
+    </columns>
   </object>
 </interface>

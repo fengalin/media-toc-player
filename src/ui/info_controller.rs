@@ -96,31 +96,78 @@ impl InfoController {
             this.add_chapter_column("Title", TITLE_COL as i32, true);
             this.add_chapter_column("Start", START_STR_COL as i32, false);
             this.add_chapter_column("End", END_STR_COL as i32, false);
-
-            let this_clone = Rc::clone(&this_rc);
-            this.drawingarea
-                .connect_draw(move |drawingarea, cairo_ctx| {
-                    let this = this_clone.borrow();
-                    this.draw_thumbnail(drawingarea, cairo_ctx)
-                });
-
-            let this_clone = Rc::clone(&this_rc);
-            this.repeat_button.connect_clicked(move |button| {
-                this_clone.borrow_mut().repeat_chapter = button.get_active();
-            });
-
-            let this_clone = Rc::clone(&this_rc);
-            this.show_chapters_button
-                .connect_toggled(move |toggle_button| {
-                    if toggle_button.get_active() {
-                        this_clone.borrow().info_container.show();
-                    } else {
-                        this_clone.borrow().info_container.hide();
-                    }
-                });
         }
 
         this_rc
+    }
+
+    pub fn register_callbacks(
+        this_rc: &Rc<RefCell<Self>>,
+        main_ctrl: &Rc<RefCell<MainController>>,
+    ) {
+        let mut this = this_rc.borrow_mut();
+
+        this.main_ctrl = Some(Rc::downgrade(main_ctrl));
+
+        // Draw thumnail image
+        let this_clone = Rc::clone(this_rc);
+        this.drawingarea
+            .connect_draw(move |drawingarea, cairo_ctx| {
+                let this = this_clone.borrow();
+                this.draw_thumbnail(drawingarea, cairo_ctx)
+            });
+
+        // Scale seek
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        this.timeline_scale
+            .connect_change_value(move |_, _, value| {
+                main_ctrl_clone.borrow_mut().seek(value as u64, false); // approximate (fast)
+                Inhibit(true)
+            });
+
+        // TreeView seek
+        let this_clone = Rc::clone(this_rc);
+        let main_ctrl_clone = Rc::clone(main_ctrl);
+        this.chapter_treeview
+            .connect_row_activated(move |_, tree_path, _| {
+                let position_opt = {
+                    // get the position first in order to make sure
+                    // this is no longer borrowed if main_ctrl::seek is to be called
+                    let mut this = this_clone.borrow_mut();
+                    match this.chapter_store.get_iter(tree_path) {
+                        Some(chapter_iter) => {
+                            let position = this.chapter_store
+                                .get_value(&chapter_iter, START_COL as i32)
+                                .get::<u64>()
+                                .unwrap();
+                            // update position
+                            this.tick(position, false);
+                            Some(position)
+                        }
+                        None => None,
+                    }
+                };
+
+                if let Some(position) = position_opt {
+                    main_ctrl_clone.borrow_mut().seek(position, true); // accurate (slow)
+                }
+            });
+
+        // repeat button
+        let this_clone = Rc::clone(this_rc);
+        this.repeat_button.connect_clicked(move |button| {
+            this_clone.borrow_mut().repeat_chapter = button.get_active();
+        });
+
+        let this_clone = Rc::clone(this_rc);
+        this.show_chapters_button
+            .connect_toggled(move |toggle_button| {
+                if toggle_button.get_active() {
+                    this_clone.borrow().info_container.show();
+                } else {
+                    this_clone.borrow().info_container.hide();
+                }
+            });
     }
 
     fn add_chapter_column(&self, title: &str, col_id: i32, can_expand: bool) {
@@ -134,33 +181,6 @@ impl InfoController {
             col.set_expand(can_expand);
         }
         self.chapter_treeview.append_column(&col);
-    }
-
-    pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
-        self.main_ctrl = Some(Rc::downgrade(main_ctrl));
-
-        // Scale seek
-        let main_ctrl_rc = Rc::clone(main_ctrl);
-        self.timeline_scale
-            .connect_change_value(move |_, _, value| {
-                main_ctrl_rc.borrow_mut().seek(value as u64, false); // approximate (fast)
-                Inhibit(true)
-            });
-
-        // TreeView seek
-        let chapter_store = self.chapter_store.clone();
-        let main_ctrl_rc = Rc::clone(main_ctrl);
-        self.chapter_treeview.set_activate_on_single_click(true);
-        self.chapter_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                if let Some(chapter_iter) = chapter_store.get_iter(tree_path) {
-                    let position = chapter_store
-                        .get_value(&chapter_iter, START_COL as i32)
-                        .get::<u64>()
-                        .unwrap();
-                    main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
-                }
-            });
     }
 
     fn draw_thumbnail(
