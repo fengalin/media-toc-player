@@ -10,7 +10,9 @@ extern crate lazy_static;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-use media::{Context, MediaInfo, Timestamp};
+use media::Context;
+
+use metadata::{MediaInfo, Timestamp};
 
 use super::{ImageSurface, MainController};
 

@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
-use super::{Chapter, MediaInfo, Stream, Timestamp};
+use metadata::{Chapter, MediaInfo, Stream, Timestamp};
 
 // The video_sink must be created in the main UI thread
 // as it contains a gtk::Widget

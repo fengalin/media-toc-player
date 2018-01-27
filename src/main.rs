@@ -15,6 +15,7 @@ mod ui;
 use ui::MainController;
 
 mod media;
+mod metadata;
 
 fn main() {
     if gtk::init().is_err() {
