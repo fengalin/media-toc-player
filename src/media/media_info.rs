@@ -1,57 +1,215 @@
 extern crate gstreamer as gst;
 
-use std::collections::HashMap;
+use super::Chapter;
 
-use super::{AlignedImage, Chapter};
+#[derive(Clone)]
+pub struct Stream {
+    pub id: String,
+    pub codec_printable: String,
+    pub caps: gst::Caps,
+    pub tags: Option<gst::TagList>,
+    pub type_: gst::StreamType,
+}
 
+impl Stream {
+    pub fn new(stream: &gst::Stream) -> Self {
+        let caps = stream.get_caps().unwrap();
+        let tags = stream.get_tags();
+        let type_ = stream.get_stream_type();
+
+        let codec_printable = {
+            let codec_printable = match tags.as_ref() {
+                Some(tags) => {
+                    let codec_printable = match type_ {
+                        gst::StreamType::AUDIO => {
+                            match tags.get_index::<gst::tags::AudioCodec>(0).as_ref() {
+                                Some(codec) => codec.get(),
+                                None => None,
+                            }
+                        }
+                        gst::StreamType::VIDEO => {
+                            match tags.get_index::<gst::tags::VideoCodec>(0).as_ref() {
+                                Some(codec) => codec.get(),
+                                None => None,
+                            }
+                        }
+                        gst::StreamType::TEXT => {
+                            match tags.get_index::<gst::tags::SubtitleCodec>(0).as_ref() {
+                                Some(codec) => codec.get(),
+                                None => None,
+                            }
+                        }
+                        _ => panic!("Stream::new can't handle {:?}", type_),
+                    };
+
+                    match codec_printable {
+                        Some(codec) => Some(codec),
+                        None => match tags.get_index::<gst::tags::Codec>(0).as_ref() {
+                            Some(codec) => codec.get(),
+                            None => None,
+                        }
+                    }
+                }
+                None => None,
+            };
+
+            match codec_printable {
+                Some(codec) => codec.to_string(),
+                None => {
+                    // codec in caps in the form "streamtype/x-codec"
+                    let codec = caps.get_structure(0).unwrap().get_name();
+                    let id_parts: Vec<&str> = codec.split('/').collect();
+                    if id_parts.len() == 2 {
+                        if id_parts[1].starts_with("x-") {
+                            id_parts[1][2..].to_string()
+                        } else {
+                            id_parts[1].to_string()
+                        }
+                    } else {
+                        codec.to_string()
+                    }
+                },
+            }
+        };
+
+        Stream {
+            id: stream.get_stream_id().unwrap(),
+            codec_printable: codec_printable,
+            caps: caps,
+            tags: tags,
+            type_: type_,
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct Streams {
+    pub audio: Vec<Stream>,
+    pub video: Vec<Stream>,
+    pub text: Vec<Stream>,
+
+    pub audio_selected: Option<Stream>,
+    pub video_selected: Option<Stream>,
+    pub text_selected: Option<Stream>,
+}
+
+impl Streams {
+    pub fn add_stream(&mut self, gst_stream: &gst::Stream) {
+        let stream = Stream::new(gst_stream);
+        match stream.type_ {
+            gst::StreamType::AUDIO => {
+                self.audio_selected.get_or_insert(stream.clone());
+                self.audio.push(stream);
+            },
+            gst::StreamType::VIDEO => {
+                self.video_selected.get_or_insert(stream.clone());
+                self.video.push(stream);
+            },
+            gst::StreamType::TEXT => {
+                self.text_selected.get_or_insert(stream.clone());
+                self.text.push(stream);
+            },
+            _ => panic!("MediaInfo::add_stream can't handle {:?}", stream.type_),
+        }
+    }
+
+    pub fn select_streams(&mut self, ids: &Vec<&str>) {
+        self.reset_selected();
+
+        for id in ids {
+            match self.video.iter().find(|ref s| &s.id == *id) {
+                Some(stream) => self.video_selected = Some(stream.clone()),
+                None => match self.audio.iter().find(|ref s| &s.id == *id) {
+                    Some(stream) => self.audio_selected = Some(stream.clone()),
+                    None => match self.text.iter().find(|ref s| &s.id == *id) {
+                        Some(stream) => self.text_selected = Some(stream.clone()),
+                        None => panic!("MediaInfo::select_streams unknown stream id {}", id),
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn reset_selected(&mut self) {
+        self.audio_selected = None;
+        self.video_selected = None;
+        self.text_selected = None;
+    }
+}
+
+#[derive(Default)]
 pub struct MediaInfo {
-    pub artist: String,
-    pub title: String,
+    pub file_name: String,
+    pub tags: gst::TagList,
     pub description: String,
     pub duration: u64,
     pub chapters: Vec<Chapter>,
 
-    pub thumbnail: Option<AlignedImage>,
-
-    pub container: String,
-
-    pub video_streams: HashMap<String, gst::Caps>,
-    pub video_best: Option<String>,
-    pub video_codec: String,
-
-    pub audio_streams: HashMap<String, gst::Caps>,
-    pub audio_best: Option<String>,
-    pub audio_codec: String,
+    pub streams: Streams,
 }
 
 impl MediaInfo {
     pub fn new() -> Self {
-        MediaInfo {
-            artist: String::new(),
-            title: String::new(),
-            description: String::new(),
-            duration: 0,
-            chapters: Vec::new(),
-
-            container: String::new(),
-
-            thumbnail: None,
-
-            video_streams: HashMap::new(),
-            video_best: None,
-            video_codec: String::new(),
-
-            audio_streams: HashMap::new(),
-            audio_best: None,
-            audio_codec: String::new(),
-        }
+        MediaInfo::default()
     }
 
-    // Fix specific cases
-    pub fn fix(&mut self) {
-        if self.video_codec.is_empty() && self.audio_codec.to_lowercase().find("mp3").is_some() {
-            // in case of an mp3 audio file, container comes as `ID3 label`
-            self.container = "".into();
+    pub fn get_artist(&self) -> Option<&str> {
+        self.tags
+            .get_index::<gst::tags::Artist>(0)
+            .map(|value| value.get().unwrap())
+            .or_else(|| {
+                self.tags
+                    .get_index::<gst::tags::AlbumArtist>(0)
+                    .map(|value| value.get().unwrap())
+            })
+            .or_else(|| {
+                self.tags
+                    .get_index::<gst::tags::ArtistSortname>(0)
+                    .map(|value| value.get().unwrap())
+            })
+            .or_else(|| {
+                self.tags
+                    .get_index::<gst::tags::AlbumArtistSortname>(0)
+                    .map(|value| value.get().unwrap())
+            })
+    }
+
+    pub fn get_title(&self) -> Option<&str> {
+        self.tags
+            .get_index::<gst::tags::Title>(0)
+            .map(|value| value.get().unwrap())
+    }
+
+    pub fn get_image(&self, index: u32) -> Option<gst::Sample> {
+        self.tags
+            .get_index::<gst::tags::Image>(index)
+            .map(|value| value.get().unwrap())
+    }
+
+    pub fn get_audio_codec(&self) -> Option<&str> {
+        self.streams.audio_selected
+            .as_ref()
+            .map(|stream| stream.codec_printable.as_str())
+    }
+
+    pub fn get_video_codec(&self) -> Option<&str> {
+        self.streams.video_selected
+            .as_ref()
+            .map(|stream| stream.codec_printable.as_str())
+    }
+
+    pub fn get_container(&self) -> Option<&str> {
+        // in case of an mp3 audio file, container comes as `ID3 label`
+        // => bypass it
+        if let Some(audio_codec) = self.get_audio_codec() {
+            if self.get_video_codec().is_none() && audio_codec.to_lowercase().find("mp3").is_some()
+            {
+                return None;
+            }
         }
+
+        self.tags
+            .get_index::<gst::tags::ContainerFormat>(0)
+            .map(|value| value.get().unwrap())
     }
 }

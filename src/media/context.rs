@@ -15,17 +15,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
-use super::{AlignedImage, Chapter, MediaInfo, Timestamp};
-
-macro_rules! assign_str_tag(
-    ($target:expr, $tags:expr, $TagType:ty) => {
-        if $target.is_empty() {
-            if let Some(tag) = $tags.get::<$TagType>() {
-                $target = tag.get().unwrap().to_owned();
-            }
-        }
-    };
-);
+use super::{Chapter, MediaInfo, Stream, Timestamp};
 
 // The video_sink must be created in the main UI thread
 // as it contains a gtk::Widget
@@ -195,9 +185,15 @@ impl Context {
                     let info = &mut info_arc_mtx
                         .lock()
                         .expect("Failed to lock media info while initializing audio stream");
-                    info.audio_streams.insert(name.to_owned(), caps.clone());
-                    let is_first = info.audio_best.is_none();
-                    info.audio_best.get_or_insert(name.to_owned());
+                    let is_first = info.streams.audio_selected.is_none();
+                    // Temporary until decodebin3 is merged
+                    info.streams.audio_selected.get_or_insert(
+                        Stream::new(
+                            &gst::Stream::new(
+                                None, &caps, gst::StreamType::AUDIO, gst::StreamFlags::SELECT
+                            )
+                        )
+                    );
 
                     is_first
                 };
@@ -210,9 +206,15 @@ impl Context {
                     let info = &mut info_arc_mtx
                         .lock()
                         .expect("Failed to lock media info while initializing audio stream");
-                    info.video_streams.insert(name.to_owned(), caps.clone());
-                    let is_first = info.video_best.is_none();
-                    info.video_best.get_or_insert(name.to_owned());
+                    let is_first = info.streams.video_selected.is_none();
+                    // Temporary until decodebin3 is merged
+                    info.streams.video_selected.get_or_insert(
+                        Stream::new(
+                            &gst::Stream::new(
+                                None, &caps, gst::StreamType::VIDEO, gst::StreamFlags::SELECT
+                            )
+                        )
+                    );
 
                     is_first
                 };
@@ -296,7 +298,11 @@ impl Context {
                         .expect("Failed to notify UI");
                 },
                 gst::MessageView::Tag(msg_tag) => if !init_done {
-                    Context::add_tags(&msg_tag.get_tags(), &info_arc_mtx);
+                    let info = &mut info_arc_mtx
+                        .lock()
+                        .expect("Failed to lock media info while reading tags");
+                    info.tags = info.tags
+                        .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
                 },
                 gst::MessageView::Toc(msg_toc) => if !init_done {
                     let (toc, _) = msg_toc.get_toc();
@@ -311,29 +317,6 @@ impl Context {
 
             glib::Continue(true)
         });
-    }
-
-    fn add_tags(tags: &gst::TagList, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
-        let info = &mut info_arc_mtx
-            .lock()
-            .expect("Failed to lock media info while reading tag data");
-        assign_str_tag!(info.title, tags, gst::tags::Title);
-        assign_str_tag!(info.artist, tags, gst::tags::Artist);
-        assign_str_tag!(info.artist, tags, gst::tags::AlbumArtist);
-        assign_str_tag!(info.container, tags, gst::tags::ContainerFormat);
-        assign_str_tag!(info.video_codec, tags, gst::tags::VideoCodec);
-        assign_str_tag!(info.audio_codec, tags, gst::tags::AudioCodec);
-
-        // TODO: distinguish front/back cover (take the first one?)
-        if let Some(image_tag) = tags.get::<gst::tags::Image>() {
-            if let Some(sample) = image_tag.get() {
-                if let Some(buffer) = sample.get_buffer() {
-                    if let Some(map) = buffer.map_readable() {
-                        info.thumbnail = AlignedImage::from_uknown_buffer(map.as_slice()).ok();
-                    }
-                }
-            }
-        }
     }
 
     fn add_toc(toc: &gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {

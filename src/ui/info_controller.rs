@@ -5,12 +5,18 @@ use gtk::prelude::*;
 
 extern crate glib;
 
+extern crate lazy_static;
+
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-use media::{Context, Timestamp};
+use media::{Context, MediaInfo, Timestamp};
 
 use super::{ImageSurface, MainController};
+
+lazy_static! {
+    static ref EMPTY_REPLACEMENT: String = "-".to_owned();
+}
 
 const START_COL: u32 = 1;
 const END_COL: u32 = 2;
@@ -38,7 +44,7 @@ pub struct InfoController {
     chapter_treeview: gtk::TreeView,
     chapter_store: gtk::TreeStore,
 
-    thumbnail: Option<ImageSurface>,
+    thumbnail: Option<cairo::ImageSurface>,
 
     duration: u64,
     chapter_iter: Option<gtk::TreeIter>,
@@ -161,9 +167,7 @@ impl InfoController {
         cairo_ctx: &cairo::Context,
     ) -> Inhibit {
         // Thumbnail draw
-        if let Some(ref thumbnail) = self.thumbnail {
-            let surface = &thumbnail.surface;
-
+        if let Some(ref surface) = self.thumbnail {
             let allocation = drawingarea.get_allocation();
             let alloc_ratio = f64::from(allocation.width) / f64::from(allocation.height);
             let surface_ratio = f64::from(surface.get_width()) / f64::from(surface.get_height());
@@ -171,7 +175,7 @@ impl InfoController {
                 f64::from(allocation.height) / f64::from(surface.get_height())
             } else {
                 f64::from(allocation.width) / f64::from(surface.get_width())
-            }.min(1f64);
+            };
             let x =
                 (f64::from(allocation.width) / scale - f64::from(surface.get_width())).abs() / 2f64;
             let y = (f64::from(allocation.height) / scale - f64::from(surface.get_height())).abs()
@@ -194,17 +198,18 @@ impl InfoController {
         self.chapter_store.clear();
 
         {
-            let mut info = context
+            let info = context
                 .info
                 .lock()
                 .expect("Failed to lock media info in InfoController");
 
-            info.fix();
-
-            if info.video_best.is_none() {
-                if let Some(thumbnail) = info.thumbnail.take() {
-                    if let Ok(image) = ImageSurface::from_aligned_image(thumbnail) {
-                        self.thumbnail = Some(image);
+            if info.streams.video_selected.is_none() {
+                if let Some(ref image_sample) = info.get_image(0) {
+                    if let Some(ref image_buffer) = image_sample.get_buffer() {
+                        if let Some(ref image_map) = image_buffer.map_readable() {
+                            self.thumbnail =
+                                ImageSurface::create_from_uknown(image_map.as_slice()).ok();
+                        }
                     }
                 }
 
@@ -218,25 +223,14 @@ impl InfoController {
                 self.drawingarea.hide();
             }
 
-            self.title_lbl.set_label(&info.title);
-            self.artist_lbl.set_label(&info.artist);
-            self.container_lbl.set_label(if !info.container.is_empty() {
-                &info.container
-            } else {
-                "-"
-            });
-            self.audio_codec_lbl
-                .set_label(if !info.audio_codec.is_empty() {
-                    &info.audio_codec
-                } else {
-                    "-"
-                });
-            self.video_codec_lbl
-                .set_label(if !info.video_codec.is_empty() {
-                    &info.video_codec
-                } else {
-                    "-"
-                });
+            self.title_lbl
+                .set_label(info.get_title().unwrap_or(&EMPTY_REPLACEMENT));
+            self.artist_lbl
+                .set_label(info.get_artist().unwrap_or(&EMPTY_REPLACEMENT));
+            self.container_lbl
+                .set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
+
+            self.streams_changed(&info);
 
             self.chapter_iter = None;
 
@@ -249,7 +243,7 @@ impl InfoController {
                     &[
                         &chapter.start.nano_total,
                         &chapter.end.nano_total,
-                        &chapter.title(),
+                        &chapter.get_title(),
                         &format!("{}", &chapter.start),
                         &format!("{}", chapter.end),
                     ],
@@ -260,6 +254,13 @@ impl InfoController {
 
             self.chapter_iter = self.chapter_store.get_iter_first();
         }
+    }
+
+    pub fn streams_changed(&self, info: &MediaInfo) {
+        self.audio_codec_lbl
+            .set_label(info.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
+        self.video_codec_lbl
+            .set_label(info.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
     }
 
     fn update_marks(&self) {
