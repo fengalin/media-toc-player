@@ -1,2 +1,10 @@
 pub mod context;
-pub use self::context::{Context, ContextMessage};
+pub use self::context::Context;
+
+pub enum ContextMessage {
+    AsyncDone,
+    Eos,
+    FailedToOpenMedia,
+    InitDone,
+    StreamsSelected,
+}

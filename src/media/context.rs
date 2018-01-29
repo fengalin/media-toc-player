@@ -15,7 +15,9 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
-use metadata::{Chapter, MediaInfo, Stream, Timestamp};
+use metadata::{Chapter, MediaInfo, Timestamp};
+
+use super::ContextMessage;
 
 // The video_sink must be created in the main UI thread
 // as it contains a gtk::Widget
@@ -30,15 +32,17 @@ lazy_static! {
             ));
 }
 
-pub enum ContextMessage {
-    AsyncDone,
-    Eos,
-    FailedToOpenMedia,
-    InitDone,
+#[derive(Clone, Debug, PartialEq)]
+pub enum PipelineState {
+    None,
+    Initialized,
+    StreamsStarted,
+    StreamsSelected,
 }
 
 pub struct Context {
     pipeline: gst::Pipeline,
+    decodebin: gst::Element,
     position_element: Option<gst::Element>,
     position_query: gst::Query,
 
@@ -62,23 +66,33 @@ impl Context {
     pub fn new(path: PathBuf, ctx_tx: Sender<ContextMessage>) -> Result<Context, String> {
         println!("\n\n* Opening {:?}...", path);
 
-        let mut ctx = Context {
+        let file_name = String::from(path.file_name().unwrap().to_str().unwrap());
+
+        let mut this = Context {
             pipeline: gst::Pipeline::new("pipeline"),
+            decodebin: gst::ElementFactory::make("decodebin3", None).unwrap(),
             position_element: None,
             position_query: gst::Query::new_position(gst::Format::Time),
 
-            file_name: String::from(path.file_name().unwrap().to_str().unwrap()),
+            file_name: file_name.clone(),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
             path: path,
 
             info: Arc::new(Mutex::new(MediaInfo::new())),
         };
 
-        ctx.build_pipeline((*VIDEO_SINK).clone());
-        ctx.register_bus_inspector(ctx_tx);
+        this.pipeline.add(&this.decodebin).unwrap();
 
-        match ctx.pause() {
-            Ok(_) => Ok(ctx),
+        this.info
+            .lock()
+            .expect("Context::new failed to lock media info")
+            .file_name = file_name;
+
+        this.build_pipeline((*VIDEO_SINK).clone());
+        this.register_bus_inspector(ctx_tx);
+
+        match this.pause() {
+            Ok(_) => Ok(this),
             Err(error) => Err(error),
         }
     }
@@ -155,6 +169,19 @@ impl Context {
             .unwrap();
     }
 
+    pub fn select_streams(&self, stream_ids: &Vec<String>) {
+        let stream_ids: Vec<&str> = stream_ids.iter().map(|id| id.as_str()).collect();
+        let select_streams_evt = gst::Event::new_select_streams(&stream_ids).build();
+        self.decodebin.send_event(select_streams_evt);
+
+        {
+            let mut info = self.info
+                .lock()
+                .expect("MainController::select_streams failed to lock info");
+            info.streams.select_streams(&stream_ids);
+        }
+    }
+
     // TODO: handle errors
     fn build_pipeline(&mut self, video_sink: gst::Element) {
         let file_src = gst::ElementFactory::make("filesrc", None).unwrap();
@@ -162,110 +189,57 @@ impl Context {
             .set_property("location", &gst::Value::from(self.path.to_str().unwrap()))
             .unwrap();
 
-        let decodebin = gst::ElementFactory::make("decodebin", None).unwrap();
-
-        self.pipeline.add_many(&[&file_src, &decodebin]).unwrap();
-        file_src.link(&decodebin).unwrap();
+        self.pipeline.add(&file_src).unwrap();
+        file_src.link(&self.decodebin).unwrap();
 
         let audio_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
-        let info_arc_mtx = Arc::clone(&self.info);
-        decodebin.connect_pad_added(move |_, src_pad| {
+        self.decodebin.connect_pad_added(move |_decodebin, src_pad| {
             let pipeline = &pipeline_clone;
+            let name = src_pad.get_name();
 
-            let caps = src_pad.get_current_caps().unwrap();
-            let structure = caps.get_structure(0).unwrap();
-            let name = structure.get_name();
+            if name.starts_with("audio_") {
+                let queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
 
-            // TODO: build only one queue by stream type (audio / video)
-            if name.starts_with("audio/") {
-                let is_first = {
-                    let info = &mut info_arc_mtx
-                        .lock()
-                        .expect("Failed to lock media info while initializing audio stream");
-                    let is_first = info.streams.audio_selected.is_none();
-                    // Temporary until decodebin3 is merged
-                    info.streams.audio_selected.get_or_insert(
-                        Stream::new(
-                            &gst::Stream::new(
-                                None, &caps, gst::StreamType::AUDIO, gst::StreamFlags::SELECT
-                            )
-                        )
-                    );
+                let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+                let resample = gst::ElementFactory::make("audioresample", None).unwrap();
 
-                    is_first
-                };
+                let elements = &[&queue, &convert, &resample, &audio_sink];
 
-                if is_first {
-                    Context::build_audio_queue(pipeline, src_pad, &audio_sink);
+                pipeline.add_many(elements).unwrap();
+                gst::Element::link_many(elements).unwrap();
+
+                for e in elements {
+                    e.sync_state_with_parent().unwrap();
                 }
-            } else if name.starts_with("video/") {
-                let is_first = {
-                    let info = &mut info_arc_mtx
-                        .lock()
-                        .expect("Failed to lock media info while initializing audio stream");
-                    let is_first = info.streams.video_selected.is_none();
-                    // Temporary until decodebin3 is merged
-                    info.streams.video_selected.get_or_insert(
-                        Stream::new(
-                            &gst::Stream::new(
-                                None, &caps, gst::StreamType::VIDEO, gst::StreamFlags::SELECT
-                            )
-                        )
-                    );
 
-                    is_first
-                };
+                let sink_pad = queue.get_static_pad("sink").unwrap();
+                assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
+            } else if name.starts_with("video_") {
+                let queue = gst::ElementFactory::make("queue", None).unwrap();
+                let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
+                let scale = gst::ElementFactory::make("videoscale", None).unwrap();
 
-                if is_first {
-                    Context::build_video_queue(pipeline, src_pad, &video_sink);
+                let elements = &[&queue, &convert, &scale, &video_sink];
+                pipeline.add_many(elements).unwrap();
+                gst::Element::link_many(elements).unwrap();
+
+                for e in elements {
+                    e.sync_state_with_parent().unwrap();
                 }
+
+                let sink_pad = queue.get_static_pad("sink").unwrap();
+                assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
             }
         });
     }
 
-    fn build_audio_queue(pipeline: &gst::Pipeline, src_pad: &gst::Pad, audio_sink: &gst::Element) {
-        let queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
-
-        let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
-        let resample = gst::ElementFactory::make("audioresample", None).unwrap();
-
-        let elements = &[&queue, &convert, &resample, audio_sink];
-
-        pipeline.add_many(elements).unwrap();
-        gst::Element::link_many(elements).unwrap();
-
-        for e in elements {
-            e.sync_state_with_parent().unwrap();
-        }
-
-        let sink_pad = queue.get_static_pad("sink").unwrap();
-        assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
-    }
-
-    fn build_video_queue(pipeline: &gst::Pipeline, src_pad: &gst::Pad, video_sink: &gst::Element) {
-        let queue = gst::ElementFactory::make("queue", None).unwrap();
-        let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
-        let scale = gst::ElementFactory::make("videoscale", None).unwrap();
-
-        let elements = &[&queue, &convert, &scale, video_sink];
-        pipeline.add_many(elements).unwrap();
-        gst::Element::link_many(elements).unwrap();
-
-        for e in elements {
-            e.sync_state_with_parent().unwrap();
-        }
-
-        let sink_pad = queue.get_static_pad("sink").unwrap();
-        assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
-    }
-
     // Uses ctx_tx to notify the UI controllers about the inspection process
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
+        let mut pipeline_state = PipelineState::None;
         let info_arc_mtx = Arc::clone(&self.info);
-        let mut init_done = false;
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
@@ -287,31 +261,59 @@ impl Context {
                         .expect("Failed to notify UI");
                     return glib::Continue(false);
                 }
-                gst::MessageView::AsyncDone(_) => if !init_done {
-                    init_done = true;
-                    ctx_tx
-                        .send(ContextMessage::InitDone)
-                        .expect("Failed to notify UI");
-                } else {
-                    ctx_tx
-                        .send(ContextMessage::AsyncDone)
-                        .expect("Failed to notify UI");
-                },
-                gst::MessageView::Tag(msg_tag) => if !init_done {
-                    let info = &mut info_arc_mtx
-                        .lock()
-                        .expect("Failed to lock media info while reading tags");
-                    info.tags = info.tags
-                        .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
-                },
-                gst::MessageView::Toc(msg_toc) => if !init_done {
-                    let (toc, _) = msg_toc.get_toc();
-                    if toc.get_scope() == TocScope::Global {
-                        Context::add_toc(&toc, &info_arc_mtx);
-                    } else {
-                        println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                gst::MessageView::AsyncDone(_) => {
+                    if pipeline_state == PipelineState::StreamsSelected {
+                        pipeline_state = PipelineState::Initialized;
+                        ctx_tx
+                            .send(ContextMessage::InitDone)
+                            .expect("Failed to notify UI");
+                    } else if pipeline_state == PipelineState::Initialized {
+                        ctx_tx
+                            .send(ContextMessage::AsyncDone)
+                            .expect("Failed to notify UI");
                     }
                 },
+                gst::MessageView::Tag(msg_tag) => {
+                    if pipeline_state != PipelineState::Initialized {
+                        let info = &mut info_arc_mtx
+                            .lock()
+                            .expect("Failed to lock media info while reading toc data");
+                        info.tags = info.tags
+                            .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
+                    }
+                }
+                gst::MessageView::Toc(msg_toc) => {
+                    if pipeline_state != PipelineState::Initialized {
+                        // FIXME: use updated
+                        let (toc, _updated) = msg_toc.get_toc();
+                        if toc.get_scope() == TocScope::Global {
+                            Context::add_toc(&toc, &info_arc_mtx);
+                        } else {
+                            println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                        }
+                    }
+                }
+                gst::MessageView::StreamStart(_) => {
+                    if pipeline_state == PipelineState::None {
+                        pipeline_state = PipelineState::StreamsStarted;
+                    }
+                }
+                gst::MessageView::StreamsSelected(_) => {
+                    if pipeline_state == PipelineState::Initialized {
+                        ctx_tx
+                            .send(ContextMessage::StreamsSelected)
+                            .expect("Failed to notify UI");
+                    } else {
+                        pipeline_state = PipelineState::StreamsSelected;
+                    }
+                }
+                gst::MessageView::StreamCollection(msg_stream_collection) => {
+                    let stream_collection = msg_stream_collection.get_stream_collection();
+                    let info = &mut info_arc_mtx
+                        .lock()
+                        .expect("Failed to lock media info while initializing audio stream");
+                    stream_collection.iter().for_each(|stream| info.streams.add_stream(&stream));
+                }
                 _ => (),
             }
 

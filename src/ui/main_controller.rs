@@ -187,10 +187,9 @@ impl MainController {
     }
 
     pub fn select_streams(&mut self, stream_ids: &Vec<String>) {
-        /*self.context.as_ref()
+        self.context.as_ref()
             .expect("MainController::select_streams no context")
             .select_streams(stream_ids);
-        */
     }
 
     fn select_media(&mut self) {
@@ -209,6 +208,11 @@ impl MainController {
         }
 
         file_dlg.close();
+    }
+
+    pub fn set_context(&mut self, context: Context) {
+        self.context = Some(context);
+        self.state = ControllerState::Paused;
     }
 
     fn remove_listener(&mut self) {
@@ -263,6 +267,21 @@ impl MainController {
 
                         // The tracker will be register again in case of a seek
                         this.remove_tracker();
+                    }
+                    StreamsSelected => {
+                        let mut this = this_rc.borrow_mut();
+                        let mut context = this.context
+                            .take()
+                            .expect("MainController(StreamsSelected) no context available");
+                        {
+                            let info = context
+                                .info
+                                .lock()
+                                .expect("MainController(StreamsSelected) failed to lock info");
+
+                            this.info_ctrl.borrow().streams_changed(&info);
+                        }
+                        this.set_context(context);
                     }
                     FailedToOpenMedia => {
                         eprintln!("ERROR: failed to open media");
@@ -323,6 +342,7 @@ impl MainController {
 
         self.video_ctrl.cleanup();
         self.info_ctrl.borrow_mut().cleanup();
+        self.streams_ctrl.borrow_mut().cleanup();
         self.header_bar.set_subtitle("");
 
         let (ctx_tx, ui_rx) = channel();
