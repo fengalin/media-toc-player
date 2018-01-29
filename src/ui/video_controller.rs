@@ -13,6 +13,7 @@ use media::Context;
 use super::MainController;
 
 pub struct VideoController {
+    container: gtk::Box,
     video_widget: gtk::Widget,
     cleaner_id: Option<SignalHandlerId>,
 }
@@ -25,6 +26,7 @@ impl VideoController {
         container.reorder_child(&video_widget, 0);
 
         VideoController {
+            container: container,
             video_widget: video_widget,
             cleaner_id: None,
         }
@@ -32,7 +34,7 @@ impl VideoController {
 
     pub fn register_callbacks(&self, main_ctrl: &Rc<RefCell<MainController>>) {
         let main_ctrl_clone = Rc::clone(main_ctrl);
-        self.video_widget
+        self.container
             .connect_button_press_event(move |_, _event_button| {
                 main_ctrl_clone.borrow_mut().play_pause();
                 Inhibit(false)

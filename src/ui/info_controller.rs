@@ -122,7 +122,7 @@ impl InfoController {
         this.timeline_scale
             .connect_change_value(move |_, _, value| {
                 main_ctrl_clone.borrow_mut().seek(value as u64, false); // approximate (fast)
-                Inhibit(true)
+                Inhibit(false)
             });
 
         // TreeView seek
