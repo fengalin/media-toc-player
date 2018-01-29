@@ -146,20 +146,6 @@ impl MainController {
         }
     }
 
-    fn stop(&mut self) {
-        if let Some(context) = self.context.as_mut() {
-            context.stop();
-        };
-
-        // remove callbacks in order to avoid conflict on borrowing of self
-        self.remove_listener();
-        self.remove_tracker();
-
-        self.play_pause_btn.set_icon_name("media-playback-start");
-
-        self.state = ControllerState::Stopped;
-    }
-
     pub fn seek(&mut self, position: u64, accurate: bool) {
         if self.state != ControllerState::Stopped {
             self.seeking = true;
@@ -216,7 +202,12 @@ impl MainController {
 
     fn select_media(&mut self) {
         self.switch_to_busy();
-        self.stop();
+        self.remove_tracker();
+        self.play_pause_btn.set_icon_name("media-playback-start");
+
+        if let Some(context) = self.context.as_mut() {
+            context.pause().unwrap();
+        };
 
         let file_dlg = gtk::FileChooserDialog::new(
             Some("Open a media file"),
@@ -266,7 +257,9 @@ impl MainController {
             for message in ui_rx.try_iter() {
                 match message {
                     AsyncDone => {
-                        this_rc.borrow_mut().seeking = false;
+                        if let Ok(mut this) = this_rc.try_borrow_mut() {
+                            this.seeking = false;
+                        }
                     }
                     InitDone => {
                         let mut this = this_rc.borrow_mut();
@@ -371,7 +364,7 @@ impl MainController {
     }
 
     fn open_media(&mut self, filepath: PathBuf) {
-        assert_eq!(self.listener_src, None);
+         self.remove_listener();
 
         self.video_ctrl.cleanup();
         self.info_ctrl.borrow_mut().cleanup();
