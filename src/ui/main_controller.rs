@@ -1,3 +1,4 @@
+extern crate gdk;
 extern crate glib;
 extern crate gstreamer as gst;
 extern crate gtk;
@@ -9,6 +10,8 @@ use std::path::PathBuf;
 
 use std::sync::mpsc::{channel, Receiver};
 
+use gdk::{Cursor, CursorType, WindowExt};
+
 use gtk::prelude::*;
 
 use media::{Context, ContextMessage};
@@ -19,9 +22,9 @@ use super::{InfoController, StreamsController, VideoController};
 #[derive(Clone, PartialEq)]
 pub enum ControllerState {
     EOS,
-    Ready,
     Paused,
     Playing,
+    Ready,
     Stopped,
 }
 
@@ -192,7 +195,27 @@ impl MainController {
             .select_streams(stream_ids);
     }
 
+    fn switch_to_busy(&mut self) {
+        self.window.set_sensitive(false);
+
+        let gdk_window = self.window.get_window().unwrap();
+        gdk_window.set_cursor(
+            &Cursor::new_for_display(
+                &gdk_window.get_display(),
+                CursorType::Watch,
+            )
+        );
+    }
+
+    fn switch_to_default(&mut self) {
+        self.window.get_window()
+            .unwrap()
+            .set_cursor(None);
+        self.window.set_sensitive(true);
+    }
+
     fn select_media(&mut self) {
+        self.switch_to_busy();
         self.stop();
 
         let file_dlg = gtk::FileChooserDialog::new(
@@ -204,7 +227,15 @@ impl MainController {
         file_dlg.add_button("Open", gtk::ResponseType::Ok.into());
 
         if file_dlg.run() == gtk::ResponseType::Ok.into() {
+            if let Some(ref context) = self.context {
+                context.stop();
+            }
             self.open_media(file_dlg.get_filename().unwrap());
+        } else {
+            if self.context.is_some() {
+                self.state = ControllerState::Paused;
+            }
+            self.switch_to_default();
         }
 
         file_dlg.close();
@@ -213,6 +244,7 @@ impl MainController {
     pub fn set_context(&mut self, context: Context) {
         self.context = Some(context);
         self.state = ControllerState::Paused;
+        self.switch_to_default();
     }
 
     fn remove_listener(&mut self) {
@@ -249,8 +281,7 @@ impl MainController {
                         this.info_ctrl.borrow_mut().new_media(&context);
                         this.video_ctrl.new_media(&context);
 
-                        this.context = Some(context);
-
+                        this.set_context(context);
                         this.state = ControllerState::Ready;
                     }
                     Eos => {
@@ -287,8 +318,10 @@ impl MainController {
                         eprintln!("ERROR: failed to open media");
 
                         let mut this = this_rc.borrow_mut();
-
                         this.context = None;
+                        this.state = ControllerState::Stopped;
+                        this.switch_to_default();
+
                         this.keep_going = false;
                         keep_going = false;
                     }
@@ -347,6 +380,7 @@ impl MainController {
 
         let (ctx_tx, ui_rx) = channel();
 
+        self.state = ControllerState::Stopped;
         self.seeking = false;
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);
@@ -355,7 +389,10 @@ impl MainController {
             Ok(context) => {
                 self.context = Some(context);
             }
-            Err(error) => eprintln!("Error opening media: {}", error),
+            Err(error) => {
+                self.switch_to_default();
+                eprintln!("Error opening media: {}", error);
+            }
         };
     }
 }

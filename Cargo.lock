@@ -356,6 +356,7 @@ name = "media-toc-player"
 version = "0.1.0"
 dependencies = [
  "cairo-rs 0.3.0 (git+https://github.com/gtk-rs/cairo.git)",
+ "gdk 0.7.0 (git+https://github.com/gtk-rs/gdk)",
  "glib 0.4.0 (git+https://github.com/gtk-rs/glib.git)",
  "gstreamer 0.11.0 (git+https://github.com/sdroege/gstreamer-rs.git)",
  "gtk 0.3.0 (git+https://github.com/gtk-rs/gtk.git)",

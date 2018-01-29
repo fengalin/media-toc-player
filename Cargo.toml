@@ -8,6 +8,7 @@ image = "^0"
 lazy_static = "^0"
 
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }
+gdk = { git = "https://github.com/gtk-rs/gdk.git" }
 gtk = { git = "https://github.com/gtk-rs/gtk.git", features = ["v3_10"] }
 glib = { git = "https://github.com/gtk-rs/glib.git" }
 
