@@ -4,24 +4,27 @@ to a given chapter and optionally looping on current chapter.
 
 **media-toc-player** is a simplication of [media-toc](https://github.com/fengalin/media-toc),
 an application to create and edit a table of contents from a media file. It is
-primarily developed in Rust on Linux, it runs on Windows and should also
-work on macOS.
+primarily developed in Rust on Linux, it runs on Windows and should also work on macOS.
 
 ## <a name='ui'></a>Screenshot
 ![media-toc-player UI Video](assets/media-toc-player_video.png)
 
-# Todo
-I intend to keep this application simple. These are the modifications that I
-forsee:
-- Switch to full screen mode.
+# Features
+- Play any media supported by the installed GStreamer plugins.
 - Select the video / audio stream to play.
+- Show the chapters list for the media.
+- Move to a chapter by clicking on its entry the list.
+- Loop on current chapter.
+
+# Todo
+- Build a flatpack.
+- Switch to full screen mode.
+- Display subtitles.
 
 # Technologies
 **media-toc-player** is developed in Rust and uses the following technologies:
 - **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
 [Rust binding](http://gtk-rs.org/docs/gtk/)) and [Glade](https://glade.gnome.org/).
-- **Cairo** ([official documentation](https://www.cairographics.org/documentation/),
-[Rust binding](http://gtk-rs.org/docs/cairo/index.html)).
 - **GStreamer** ([official documentation](https://gstreamer.freedesktop.org/documentation/),
 [Rust binding](https://sdroege.github.io/rustdoc/gstreamer/gstreamer/)).
 
