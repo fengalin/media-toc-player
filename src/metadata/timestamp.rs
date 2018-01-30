@@ -12,6 +12,18 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
+    pub fn new() -> Self {
+        Timestamp {
+            nano_total: 0,
+            nano: 0,
+            us: 0,
+            ms: 0,
+            s: 0,
+            m: 0,
+            h: 0,
+        }
+    }
+
     pub fn from_nano(nano_total: u64) -> Self {
         let us_total = nano_total / 1_000;
         let ms_total = us_total / 1_000;
@@ -43,6 +55,48 @@ impl Timestamp {
         } else {
             Timestamp::from_nano(nano as u64)
         }
+    }
+
+    // FIXME: handle errors nicely
+    pub fn from_string(input: &str) -> Self {
+        let mut ts = Timestamp::new();
+
+        let mut parts: Vec<&str> = input.trim().split(':').collect();
+        if parts.len() < 2 {
+            panic!("Timestamp::from_string can't parse {}", input);
+        }
+
+        // parse last part, expecting 000.000 or 000.000.000
+        let last = parts.pop().unwrap();
+        let mut dot_parts: Vec<&str> = last.split('.').collect();
+        ts.us = if dot_parts.len() == 3 {
+            dot_parts.pop().unwrap().parse::<u64>().unwrap()
+        } else {
+            0
+        };
+
+        ts.ms = if dot_parts.len() == 2 {
+            dot_parts.pop().unwrap().parse::<u64>().unwrap()
+        } else {
+            0
+        };
+
+        ts.s = dot_parts.pop().unwrap().parse::<u64>().unwrap();
+
+        ts.m = parts.pop().unwrap().parse::<u64>().unwrap();
+
+        if parts.is_empty() {
+            ts.h = 0;
+        } else if parts.len() == 1 {
+            ts.h = parts.pop().unwrap().parse::<u64>().unwrap();
+        } else {
+            panic!("Timestamp::from_string too many parts in {}", input);
+        }
+
+        ts.nano_total =
+            ((((ts.h * 60 + ts.m) * 60 + ts.s) * 1_000 + ts.ms) * 1_000 + ts.us) * 1_000;
+
+        ts
     }
 
     pub fn format(nano_total: u64, with_micro: bool) -> String {

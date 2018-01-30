@@ -7,12 +7,15 @@ extern crate glib;
 
 extern crate lazy_static;
 
+use std::fs::File;
+
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
 use media::Context;
 
-use metadata::{MediaInfo, Timestamp};
+use metadata;
+use metadata::{Chapter, MediaInfo, Timestamp};
 
 use super::{ImageSurface, MainController};
 
@@ -222,6 +225,29 @@ impl InfoController {
 
         self.chapter_store.clear();
 
+        let media_path = context.path.clone();
+        let file_stem = media_path
+            .file_stem()
+            .expect("InfoController::new_media clicked, failed to get file_stem")
+            .to_str()
+            .expect("InfoController::new_media clicked, failed to get file_stem as str");
+
+        // check the presence of toc files
+        let toc_extensions = metadata::Factory::get_extensions();
+        let test_path = media_path.clone();
+        let mut toc_candidates = toc_extensions
+            .into_iter()
+            .filter_map(|(extension, format)| {
+                let path = test_path
+                    .clone()
+                    .with_file_name(&format!("{}.{}", file_stem, extension));
+                if path.is_file() {
+                    Some((path, format))
+                } else {
+                    None
+                }
+            });
+
         {
             let info = context
                 .info
@@ -259,7 +285,23 @@ impl InfoController {
 
             self.chapter_iter = None;
 
-            let chapter_iter = info.chapters.iter();
+            let mut chapters_ext = Vec::<Chapter>::new();
+            let chapters = match toc_candidates.next() {
+                Some((toc_path, format)) => {
+                    let mut toc_file = File::open(toc_path)
+                        .expect("InfoController::new_media failed to open toc file");
+                    metadata::Factory::get_reader(&format).read(
+                        &info,
+                        self.duration,
+                        &mut toc_file,
+                        &mut chapters_ext,
+                    );
+                    &chapters_ext
+                }
+                None => &info.chapters,
+            };
+
+            let chapter_iter = chapters.iter();
             for chapter in chapter_iter {
                 self.chapter_store.insert_with_values(
                     None,
