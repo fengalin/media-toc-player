@@ -1,4 +1,8 @@
 language: rust
+
+env:
+  - GTK=3.18
+
 matrix:
   include:
     - os: linux
@@ -7,17 +11,17 @@ matrix:
     - os: osx
       rust: nightly
 
-cache:
-    cargo: true
-
 addons:
   apt:
     packages:
       - libgtk-3-dev
 
+cache:
+  cargo: false
+
 before_install:
-    - sh ci/before_install.sh
+  - . ci/before_install.sh
 
 script:
-    - rustc --version
-    - cargo build
+  - rustc --version
+  - cargo build
