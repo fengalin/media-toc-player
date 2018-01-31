@@ -1,0 +1,54 @@
+{
+  "app-id": "org.fengalin.media-toc-player",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "3.26",
+  "sdk": "org.gnome.Sdk",
+  "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+  "command": "media-toc-player",
+  "finish-args": [
+    "--share=ipc",
+    "--socket=x11",
+    "--env=GDK_BACKEND=x11",
+    "--socket=wayland",
+    "--socket=pulseaudio",
+    "--talk-name=org.freedesktop.FileManager1",
+    "--filesystem=home",
+    "--filesystem=xdg-run/dconf",
+    "--filesystem=~/.config/dconf:ro",
+    "--talk-name=ca.desrt.dconf",
+    "--env=DCONF_USER_CONFIG_DIR=.config/dconf",
+    "--env=LD_LIBRARY_PATH=/app/lib"
+  ],
+  "build-options" : {
+    "build-args": [
+      "--share=network"
+    ],
+    "append-path": "/usr/lib/sdk/rust-stable/bin",
+    "env": {
+      "V": "1",
+      "CARGO_HOME": "/run/build/media-toc-player/cargo"
+    }
+  },
+  "cleanup": [
+    "/include",
+    "/lib/pkgconfig",
+    "/share/gtk-doc",
+    "*.la"
+  ],
+  "modules": [
+    {
+      "name": "media-toc-player",
+      "buildsystem": "simple",
+      "build-commands": [
+        "cargo build --release",
+        "install -Dm755 target/release/media-toc-player /app/bin/media-toc-player"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "path": "."
+        }
+      ]
+    }
+  ]
+}

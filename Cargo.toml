@@ -2,11 +2,17 @@
 name = "media-toc-player"
 version = "0.1.0"
 authors = ["François Laignel <fengalin@free.fr>"]
-keywords = ["multimedia", "player", "chapters", "table-of-contents", "gtk3", "gstreamer"]
+keywords = ["multimedia", "player", "table-of-contents", "gtk3", "gstreamer"]
 repository = "https://github.com/fengalin/media-toc-player"
 readme = "README.md"
 description = "A media player with a table of contents"
 license = "MIT"
+
+# This is required by flatpack sdk extension
+# org.freedesktop.Sdk.Extension.rust-stable
+[[bin]]
+name = "media_toc_player"
+path = "src/main.rs"
 
 [dependencies]
 image = "^0"

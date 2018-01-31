@@ -13,3 +13,6 @@
 
 # Editors' backup
 *~
+
+# Flatpak build tree
+.flatpak-builder

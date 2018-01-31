@@ -17,9 +17,9 @@ primarily developed in Rust on Linux, it runs on Windows and should also work on
 - Loop on current chapter.
 
 # Todo
-- Build a flatpak.
 - Switch to full screen mode.
 - Display subtitles.
+- Finalize flatpak with more gst-plugins.
 
 # Technologies
 **media-toc-player** is developed in Rust and uses the following technologies:
