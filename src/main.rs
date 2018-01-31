@@ -1,7 +1,3 @@
-#![feature(ord_max_min)]
-#![feature(placement_in_syntax)]
-#![feature(collection_placement)]
-
 extern crate gdk;
 extern crate glib;
 extern crate gstreamer;

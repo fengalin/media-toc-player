@@ -17,7 +17,7 @@ primarily developed in Rust on Linux, it runs on Windows and should also work on
 - Loop on current chapter.
 
 # Todo
-- Build a flatpack.
+- Build a flatpak.
 - Switch to full screen mode.
 - Display subtitles.
 
@@ -30,11 +30,10 @@ primarily developed in Rust on Linux, it runs on Windows and should also work on
 
 # Environment preparation
 ## Toolchain
-Rust nightly version is required at the moment.
 ```
 $ curl https://sh.rustup.rs -sSf | sh
 ```
-Select the nightly toolchain. See the full documentation
+Select the stable toolchain. See the full documentation
 [here](https://github.com/rust-lang-nursery/rustup.rs#installation).
 
 ## Dependencies
@@ -74,7 +73,7 @@ pacman --noconfirm -S mingw-w64-x86_64-gtk3 \
 
 - Launch the [rustup installer](https://www.rustup.rs/).
 When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
-`i686-pc-windows-gnu` for a 32bits system), then select `nightly`.
+`i686-pc-windows-gnu` for a 32bits system), then select `stable`.
 - From a MSYS2 mingw shell
   - add cargo to the `PATH`:
   ```

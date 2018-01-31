@@ -6,10 +6,10 @@ env:
 matrix:
   include:
     - os: linux
-      rust: nightly
+      rust: stable
       dist: trusty
     - os: osx
-      rust: nightly
+      rust: stable
 
 addons:
   apt:
