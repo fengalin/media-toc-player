@@ -12,23 +12,13 @@
     "--socket=wayland",
     "--socket=pulseaudio",
     "--talk-name=org.freedesktop.FileManager1",
-    "--filesystem=home",
+    "--filesystem=home:ro",
     "--filesystem=xdg-run/dconf",
     "--filesystem=~/.config/dconf:ro",
     "--talk-name=ca.desrt.dconf",
     "--env=DCONF_USER_CONFIG_DIR=.config/dconf",
     "--env=LD_LIBRARY_PATH=/app/lib"
   ],
-  "build-options" : {
-    "build-args": [
-      "--share=network"
-    ],
-    "append-path": "/usr/lib/sdk/rust-stable/bin",
-    "env": {
-      "V": "1",
-      "CARGO_HOME": "/run/build/media-toc-player/cargo"
-    }
-  },
   "cleanup": [
     "/include",
     "/lib/pkgconfig",
@@ -37,11 +27,42 @@
   ],
   "modules": [
     {
+      "name": "gst-plugins-ugly",
+      "buildsystem": "meson",
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://anongit.freedesktop.org/git/gstreamer/gst-plugins-ugly",
+          "tag": "1.12.4"
+        }
+      ]
+    },
+    {
+      "name": "gst-libav",
+      "buildsystem": "meson",
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://anongit.freedesktop.org/git/gstreamer/gst-libav",
+          "tag": "1.12.4"
+        }
+      ]
+    },
+    {
       "name": "media-toc-player",
       "buildsystem": "simple",
+      "build-options" : {
+        "build-args": [
+          "--share=network"
+        ],
+        "append-path": "/usr/lib/sdk/rust-stable/bin",
+        "env": {
+          "V": "1"
+        }
+      },
       "build-commands": [
         "cargo build --release",
-        "install -Dm755 target/release/media-toc-player /app/bin/media-toc-player"
+        "install -Dm755 target/release/media_toc_player /app/bin/media-toc-player"
       ],
       "sources": [
         {
