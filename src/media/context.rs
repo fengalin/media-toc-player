@@ -169,7 +169,7 @@ impl Context {
             .unwrap();
     }
 
-    pub fn select_streams(&self, stream_ids: &Vec<String>) {
+    pub fn select_streams(&self, stream_ids: &[String]) {
         let stream_ids: Vec<&str> = stream_ids.iter().map(|id| id.as_str()).collect();
         let select_streams_evt = gst::Event::new_select_streams(&stream_ids).build();
         self.decodebin.send_event(select_streams_evt);
@@ -196,44 +196,45 @@ impl Context {
 
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
-        self.decodebin.connect_pad_added(move |_decodebin, src_pad| {
-            let pipeline = &pipeline_clone;
-            let name = src_pad.get_name();
+        self.decodebin
+            .connect_pad_added(move |_decodebin, src_pad| {
+                let pipeline = &pipeline_clone;
+                let name = src_pad.get_name();
 
-            if name.starts_with("audio_") {
-                let queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
+                if name.starts_with("audio_") {
+                    let queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
 
-                let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
-                let resample = gst::ElementFactory::make("audioresample", None).unwrap();
+                    let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+                    let resample = gst::ElementFactory::make("audioresample", None).unwrap();
 
-                let elements = &[&queue, &convert, &resample, &audio_sink];
+                    let elements = &[&queue, &convert, &resample, &audio_sink];
 
-                pipeline.add_many(elements).unwrap();
-                gst::Element::link_many(elements).unwrap();
+                    pipeline.add_many(elements).unwrap();
+                    gst::Element::link_many(elements).unwrap();
 
-                for e in elements {
-                    e.sync_state_with_parent().unwrap();
+                    for e in elements {
+                        e.sync_state_with_parent().unwrap();
+                    }
+
+                    let sink_pad = queue.get_static_pad("sink").unwrap();
+                    assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
+                } else if name.starts_with("video_") {
+                    let queue = gst::ElementFactory::make("queue", None).unwrap();
+                    let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
+                    let scale = gst::ElementFactory::make("videoscale", None).unwrap();
+
+                    let elements = &[&queue, &convert, &scale, &video_sink];
+                    pipeline.add_many(elements).unwrap();
+                    gst::Element::link_many(elements).unwrap();
+
+                    for e in elements {
+                        e.sync_state_with_parent().unwrap();
+                    }
+
+                    let sink_pad = queue.get_static_pad("sink").unwrap();
+                    assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
                 }
-
-                let sink_pad = queue.get_static_pad("sink").unwrap();
-                assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
-            } else if name.starts_with("video_") {
-                let queue = gst::ElementFactory::make("queue", None).unwrap();
-                let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
-                let scale = gst::ElementFactory::make("videoscale", None).unwrap();
-
-                let elements = &[&queue, &convert, &scale, &video_sink];
-                pipeline.add_many(elements).unwrap();
-                gst::Element::link_many(elements).unwrap();
-
-                for e in elements {
-                    e.sync_state_with_parent().unwrap();
-                }
-
-                let sink_pad = queue.get_static_pad("sink").unwrap();
-                assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
-            }
-        });
+            });
     }
 
     // Uses ctx_tx to notify the UI controllers about the inspection process
@@ -272,7 +273,7 @@ impl Context {
                             .send(ContextMessage::AsyncDone)
                             .expect("Failed to notify UI");
                     }
-                },
+                }
                 gst::MessageView::Tag(msg_tag) => {
                     if pipeline_state != PipelineState::Initialized {
                         let info = &mut info_arc_mtx
@@ -312,7 +313,9 @@ impl Context {
                     let info = &mut info_arc_mtx
                         .lock()
                         .expect("Failed to lock media info while initializing audio stream");
-                    stream_collection.iter().for_each(|stream| info.streams.add_stream(&stream));
+                    stream_collection
+                        .iter()
+                        .for_each(|stream| info.streams.add_stream(&stream));
                 }
                 _ => (),
             }

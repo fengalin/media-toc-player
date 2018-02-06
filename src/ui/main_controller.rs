@@ -175,8 +175,9 @@ impl MainController {
         }
     }
 
-    pub fn select_streams(&mut self, stream_ids: &Vec<String>) {
-        self.context.as_ref()
+    pub fn select_streams(&mut self, stream_ids: &[String]) {
+        self.context
+            .as_ref()
             .expect("MainController::select_streams no context")
             .select_streams(stream_ids);
     }
@@ -185,18 +186,14 @@ impl MainController {
         self.window.set_sensitive(false);
 
         let gdk_window = self.window.get_window().unwrap();
-        gdk_window.set_cursor(
-            &Cursor::new_for_display(
-                &gdk_window.get_display(),
-                CursorType::Watch,
-            )
-        );
+        gdk_window.set_cursor(&Cursor::new_for_display(
+            &gdk_window.get_display(),
+            CursorType::Watch,
+        ));
     }
 
     fn switch_to_default(&mut self) {
-        self.window.get_window()
-            .unwrap()
-            .set_cursor(None);
+        self.window.get_window().unwrap().set_cursor(None);
         self.window.set_sensitive(true);
     }
 
@@ -364,7 +361,7 @@ impl MainController {
     }
 
     fn open_media(&mut self, filepath: PathBuf) {
-         self.remove_listener();
+        self.remove_listener();
 
         self.video_ctrl.cleanup();
         self.info_ctrl.borrow_mut().cleanup();
