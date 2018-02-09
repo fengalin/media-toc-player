@@ -24,7 +24,6 @@ pub enum ControllerState {
     EOS,
     Paused,
     Playing,
-    Ready,
     Stopped,
 }
 
@@ -160,14 +159,7 @@ impl MainController {
                 .expect("MainController::seek no context")
                 .seek(position, accurate);
 
-            if self.state == ControllerState::EOS || self.state == ControllerState::Ready {
-                if self.state == ControllerState::Ready {
-                    self.context
-                        .as_ref()
-                        .expect("MainController::seek no context")
-                        .play()
-                        .unwrap();
-                }
+            if self.state == ControllerState::EOS {
                 self.register_tracker();
                 self.play_pause_btn.set_icon_name("media-playback-pause");
                 self.state = ControllerState::Playing;
@@ -271,8 +263,10 @@ impl MainController {
                         this.info_ctrl.borrow_mut().new_media(&context);
                         this.video_ctrl.new_media(&context);
 
+                        this.register_tracker();
+                        this.play_pause_btn.set_icon_name("media-playback-pause");
+                        this.state = ControllerState::Playing;
                         this.set_context(context);
-                        this.state = ControllerState::Ready;
                     }
                     Eos => {
                         let mut this = this_rc.borrow_mut();

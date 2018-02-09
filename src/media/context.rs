@@ -91,7 +91,7 @@ impl Context {
         this.build_pipeline((*VIDEO_SINK).clone());
         this.register_bus_inspector(ctx_tx);
 
-        match this.pause() {
+        match this.play() {
             Ok(_) => Ok(this),
             Err(error) => Err(error),
         }
