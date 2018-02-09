@@ -1,3 +1,5 @@
+extern crate clap;
+
 extern crate gdk;
 extern crate glib;
 extern crate gstreamer;
@@ -5,6 +7,8 @@ extern crate gtk;
 
 #[macro_use]
 extern crate lazy_static;
+
+use clap::{Arg, App};
 
 use gtk::Builder;
 
@@ -15,6 +19,15 @@ mod media;
 mod metadata;
 
 fn main() {
+    let matches = App::new("media-toc-player")
+        .version("0.0.1")
+        .author("François Laignel <fengalin@free.fr>")
+        .about("A media player with a table of contents")
+        .arg(Arg::with_name("INPUT")
+            .help("Path to the input media file to play")
+            .index(1))
+        .get_matches();
+
     if gtk::init().is_err() {
         panic!("Failed to initialize GTK.");
     }
@@ -29,6 +42,12 @@ fn main() {
         MainController::new(&builder)
     };
     main_ctrl.borrow().show_all();
+
+    if let Some(input_file) = matches.value_of("INPUT") {
+        main_ctrl
+            .borrow_mut()
+            .open_media(input_file.into());
+    }
 
     gtk::main();
 }

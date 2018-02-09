@@ -360,7 +360,7 @@ impl MainController {
         }));
     }
 
-    fn open_media(&mut self, filepath: PathBuf) {
+    pub fn open_media(&mut self, filepath: PathBuf) {
         self.remove_listener();
 
         self.video_ctrl.cleanup();

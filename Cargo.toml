@@ -8,13 +8,12 @@ readme = "README.md"
 description = "A media player with a table of contents"
 license = "MIT"
 
-# This is required by flatpack sdk extension
-# org.freedesktop.Sdk.Extension.rust-stable
 [[bin]]
 name = "media_toc_player"
 path = "src/main.rs"
 
 [dependencies]
+clap = "^2"
 image = "^0"
 lazy_static = "^0"
 
