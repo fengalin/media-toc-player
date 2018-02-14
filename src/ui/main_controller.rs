@@ -149,10 +149,9 @@ impl MainController {
         if self.state != ControllerState::Stopped {
             self.seeking = true;
 
-            // update position even though the stream
-            // is not sync yet for the user to notice
-            // the seek request in being handled
-            self.info_ctrl.borrow_mut().seek(position);
+            if self.state == ControllerState::Playing || self.state == ControllerState::Paused {
+                self.info_ctrl.borrow_mut().seek(position, &self.state);
+            }
 
             self.context
                 .as_ref()

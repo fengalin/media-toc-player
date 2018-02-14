@@ -22,8 +22,6 @@
   </object>
   <object class="GtkTreeStore" id="chapters-tree-store">
     <columns>
-      <!-- column-name Id -->
-      <column type="gint"/>
       <!-- column-name Start -->
       <column type="guint64"/>
       <!-- column-name End -->
