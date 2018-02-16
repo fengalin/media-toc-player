@@ -1,7 +1,6 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, ClockTime, ElementFactory, GstObjectExt, PadExt, QueryView, TocEntryType,
-                TocScope};
+use gstreamer::{BinExt, ClockTime, ElementFactory, GstObjectExt, PadExt, TocEntryType, TocScope};
 
 extern crate glib;
 use glib::ObjectExt;
@@ -44,7 +43,7 @@ pub struct Context {
     pipeline: gst::Pipeline,
     decodebin: gst::Element,
     position_element: Option<gst::Element>,
-    position_query: gst::Query,
+    position_query: gst::query::Position<gst::Query>,
 
     pub path: PathBuf,
     pub file_name: String,
@@ -116,11 +115,8 @@ impl Context {
                     panic!("No sink in pipeline");
                 }
             })
-            .query(self.position_query.get_mut().unwrap());
-        match self.position_query.view() {
-            QueryView::Position(ref position) => position.get_result().get_value() as u64,
-            _ => unreachable!(),
-        }
+            .query(&mut self.position_query);
+        self.position_query.get_result().get_value() as u64
     }
 
     pub fn get_duration(&self) -> u64 {
