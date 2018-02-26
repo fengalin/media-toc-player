@@ -1,9 +1,11 @@
+extern crate gstreamer as gst;
+
 extern crate gtk;
 use gtk::prelude::*;
 
 extern crate lazy_static;
 
-use metadata::Chapter;
+use metadata::{Timestamp, TocVisit, TocVisitor};
 
 const START_COL: u32 = 0;
 const END_COL: u32 = 1;
@@ -124,22 +126,45 @@ impl ChapterTreeManager {
         self.store.clear();
     }
 
-    pub fn replace_with(&mut self, chapter_list: &[Chapter]) {
+    pub fn replace_with(&mut self, toc: &Option<gst::Toc>) {
         self.clear();
 
-        for chapter in chapter_list.iter() {
-            self.store.insert_with_values(
-                None,
-                None,
-                &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
-                &[
-                    &chapter.start.nano_total,
-                    &chapter.end.nano_total,
-                    &chapter.get_title().unwrap_or(&DEFAULT_TITLE),
-                    &format!("{}", &chapter.start),
-                    &format!("{}", chapter.end),
-                ],
-            );
+        if let &Some(ref toc) = toc {
+            let mut toc_visitor = TocVisitor::new(toc);
+            toc_visitor.enter_chapters();
+
+            // FIXME: handle hierarchical Tocs
+            while let Some(toc_visit) = toc_visitor.next() {
+                match toc_visit {
+                    TocVisit::Node(chapter) => {
+                        assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
+
+                        if let Some((start, end)) = chapter.get_start_stop_times() {
+                            let start = start as u64;
+                            let end = end as u64;
+
+                            let title = chapter.get_tags().map_or(None, |tags| {
+                                tags.get::<gst::tags::Title>().map(|tag| {
+                                    tag.get().unwrap().to_owned()
+                                })
+                            }).unwrap_or(DEFAULT_TITLE.to_owned());
+                            self.store.insert_with_values(
+                                None,
+                                None,
+                                &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
+                                &[
+                                    &start,
+                                    &end,
+                                    &title,
+                                    &format!("{}", &Timestamp::format(start, false)),
+                                    &format!("{}", &Timestamp::format(end, false)),
+                                ],
+                            );
+                        }
+                    }
+                    _ => (),
+                }
+            }
         }
 
         self.iter = self.store.get_iter_first();

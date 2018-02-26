@@ -1,6 +1,3 @@
-pub mod chapter;
-pub use self::chapter::Chapter;
-
 pub mod factory;
 pub use self::factory::Factory;
 
@@ -16,7 +13,8 @@ pub use self::mkvmerge_text_format::MKVMergeTextFormat;
 pub mod timestamp;
 pub use self::timestamp::Timestamp;
 
-pub static METADATA_TITLE: &'static str = "title";
+pub mod toc_visitor;
+pub use self::toc_visitor::{TocVisit, TocVisitor};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Format {

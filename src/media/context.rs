@@ -1,6 +1,6 @@
 extern crate gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer::{BinExt, ClockTime, ElementFactory, GstObjectExt, PadExt, TocEntryType, TocScope};
+use gstreamer::{BinExt, ClockTime, ElementFactory, GstObjectExt, PadExt};
 
 extern crate glib;
 use glib::ObjectExt;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
-use metadata::{Chapter, MediaInfo, Timestamp};
+use metadata::MediaInfo;
 
 use super::ContextMessage;
 
@@ -117,14 +117,6 @@ impl Context {
             })
             .query(&mut self.position_query);
         self.position_query.get_result().get_value() as u64
-    }
-
-    pub fn get_duration(&self) -> u64 {
-        self.pipeline
-            .query_duration::<gst::ClockTime>()
-            .unwrap_or_else(|| 0.into())
-            .nanoseconds()
-            .unwrap()
     }
 
     pub fn get_state(&self) -> gst::State {
@@ -237,6 +229,7 @@ impl Context {
     fn register_bus_inspector(&self, ctx_tx: Sender<ContextMessage>) {
         let mut pipeline_state = PipelineState::None;
         let info_arc_mtx = Arc::clone(&self.info);
+        let pipeline = self.pipeline.clone();
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
@@ -261,6 +254,16 @@ impl Context {
                 gst::MessageView::AsyncDone(_) => {
                     if pipeline_state == PipelineState::StreamsSelected {
                         pipeline_state = PipelineState::Initialized;
+                        {
+                            let info = &mut info_arc_mtx
+                                .lock()
+                                .expect("Failed to lock media info while setting duration");
+                            info.duration = pipeline
+                                .query_duration::<gst::ClockTime>()
+                                .unwrap_or_else(|| 0.into())
+                                .nanoseconds()
+                                .unwrap();
+                        }
                         ctx_tx
                             .send(ContextMessage::InitDone)
                             .expect("Failed to notify UI");
@@ -274,7 +277,7 @@ impl Context {
                     if pipeline_state != PipelineState::Initialized {
                         let info = &mut info_arc_mtx
                             .lock()
-                            .expect("Failed to lock media info while reading toc data");
+                            .expect("Failed to lock media info while reading tags");
                         info.tags = info.tags
                             .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
                     }
@@ -283,8 +286,11 @@ impl Context {
                     if pipeline_state != PipelineState::Initialized {
                         // FIXME: use updated
                         let (toc, _updated) = msg_toc.get_toc();
-                        if toc.get_scope() == TocScope::Global {
-                            Context::add_toc(&toc, &info_arc_mtx);
+                        if toc.get_scope() == gst::TocScope::Global {
+                            let info = &mut info_arc_mtx
+                                .lock()
+                                .expect("Failed to lock media info while receiving toc");
+                            info.toc = Some(toc);
                         } else {
                             println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
                         }
@@ -318,48 +324,5 @@ impl Context {
 
             glib::Continue(true)
         });
-    }
-
-    fn add_toc(toc: &gst::Toc, info_arc_mtx: &Arc<Mutex<MediaInfo>>) {
-        let info = &mut info_arc_mtx
-            .lock()
-            .expect("Failed to lock media info while reading toc data");
-        if info.chapters.is_empty() {
-            // chapters not retrieved yet
-            // TODO: check if there are medias with some sort of
-            // incremental tocs (not likely for files)
-            // or maybe the updated flag (_ above) should be used
-
-            for entry in toc.get_entries() {
-                if entry.get_entry_type() == TocEntryType::Edition {
-                    for sub_entry in entry.get_sub_entries() {
-                        if sub_entry.get_entry_type() == TocEntryType::Chapter {
-                            if let Some((start, stop)) = sub_entry.get_start_stop_times() {
-                                let mut title = String::new();
-                                if let Some(tags) = sub_entry.get_tags() {
-                                    if let Some(tag) = tags.get::<gst::tags::Title>() {
-                                        title = tag.get().unwrap().to_owned();
-                                    };
-                                };
-                                info.chapters.push(Chapter::new(
-                                    sub_entry.get_uid(),
-                                    &title,
-                                    Timestamp::from_signed_nano(start),
-                                    Timestamp::from_signed_nano(stop),
-                                ));
-                            }
-                        } /*else {
-                            println!("Warning: Skipping toc sub entry with entry type: {:?}",
-                                sub_entry.get_entry_type()
-                            );
-                        }*/
-                    }
-                } /*else {
-                    println!("Warning: Skipping toc entry with entry type: {:?}",
-                        entry.get_entry_type()
-                    );
-                }*/
-            }
-        }
     }
 }

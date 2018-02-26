@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use media::Context;
 
 use metadata;
-use metadata::{Chapter, MediaInfo, Timestamp};
+use metadata::{MediaInfo, Timestamp};
 
 use super::{ChapterTreeManager, ControllerState, ImageSurface, MainController};
 
@@ -193,11 +193,6 @@ impl InfoController {
     }
 
     pub fn new_media(&mut self, context: &Context) {
-        self.duration = context.get_duration();
-        self.timeline_scale.set_range(0f64, self.duration as f64);
-        self.duration_lbl
-            .set_label(&Timestamp::format(self.duration, false));
-
         let media_path = context.path.clone();
         let file_stem = media_path
             .file_stem()
@@ -225,7 +220,12 @@ impl InfoController {
             let info = context
                 .info
                 .lock()
-                .expect("Failed to lock media info in InfoController");
+                .expect("InfoController::new_media failed to lock media info");
+
+            self.duration = info.duration;
+            self.timeline_scale.set_range(0f64, info.duration as f64);
+            self.duration_lbl
+                .set_label(&Timestamp::format(info.duration, false));
 
             if info.streams.video_selected.is_none() {
                 if let Some(ref image_sample) = info.get_image(0) {
@@ -260,16 +260,11 @@ impl InfoController {
                 Some((toc_path, format)) => {
                     let mut toc_file = File::open(toc_path)
                         .expect("InfoController::new_media failed to open toc file");
-                    let mut chapters = Vec::<Chapter>::new();
-                    metadata::Factory::get_reader(&format).read(
-                        &info,
-                        self.duration,
-                        &mut toc_file,
-                        &mut chapters,
+                    self.chapter_manager.replace_with(&metadata::Factory::get_reader(&format)
+                        .read(&info, &mut toc_file)
                     );
-                    self.chapter_manager.replace_with(&chapters);
                 }
-                None => self.chapter_manager.replace_with(&info.chapters),
+                None => self.chapter_manager.replace_with(&info.toc),
             }
 
             self.update_marks();

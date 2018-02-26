@@ -24,39 +24,6 @@ impl Timestamp {
         }
     }
 
-    pub fn from_nano(nano_total: u64) -> Self {
-        let us_total = nano_total / 1_000;
-        let ms_total = us_total / 1_000;
-        let s_total = ms_total / 1_000;
-        let m_total = s_total / 60;
-
-        Timestamp {
-            nano_total: nano_total,
-            nano: nano_total % 1_000,
-            us: us_total % 1_000,
-            ms: ms_total % 1_000,
-            s: s_total % 60,
-            m: m_total % 60,
-            h: m_total / 60,
-        }
-    }
-
-    pub fn from_signed_nano(nano: i64) -> Self {
-        if nano.is_negative() {
-            Timestamp {
-                nano_total: 0,
-                nano: 0,
-                us: 0,
-                ms: 0,
-                s: 0,
-                m: 0,
-                h: 0,
-            }
-        } else {
-            Timestamp::from_nano(nano as u64)
-        }
-    }
-
     // FIXME: handle errors nicely
     pub fn from_string(input: &str) -> Self {
         let mut ts = Timestamp::new();

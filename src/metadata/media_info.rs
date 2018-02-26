@@ -1,7 +1,5 @@
 extern crate gstreamer as gst;
 
-use super::Chapter;
-
 #[derive(Clone)]
 pub struct Stream {
     pub id: String,
@@ -141,9 +139,10 @@ impl Streams {
 pub struct MediaInfo {
     pub file_name: String,
     pub tags: gst::TagList,
+    pub toc: Option<gst::Toc>,
+
     pub description: String,
     pub duration: u64,
-    pub chapters: Vec<Chapter>,
 
     pub streams: Streams,
 }
