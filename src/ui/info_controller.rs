@@ -1,11 +1,9 @@
-extern crate cairo;
+use cairo;
 
-extern crate gtk;
+use gtk;
 use gtk::prelude::*;
 
-extern crate glib;
-
-extern crate lazy_static;
+use glib;
 
 use std::fs::File;
 

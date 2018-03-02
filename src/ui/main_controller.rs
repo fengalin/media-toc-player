@@ -1,7 +1,6 @@
-extern crate gdk;
-extern crate glib;
-extern crate gstreamer as gst;
-extern crate gtk;
+use glib;
+use gstreamer as gst;
+use gtk;
 
 use std::rc::Rc;
 use std::cell::RefCell;

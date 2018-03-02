@@ -1,13 +1,11 @@
-extern crate gstreamer as gst;
+use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer::{BinExt, ClockTime, ElementFactory, GstObjectExt, PadExt};
 
-extern crate glib;
+use glib;
 use glib::ObjectExt;
 
-extern crate gtk;
-
-extern crate lazy_static;
+use gtk;
 
 use std::path::PathBuf;
 

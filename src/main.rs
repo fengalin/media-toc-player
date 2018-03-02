@@ -1,9 +1,11 @@
+extern crate cairo;
 extern crate clap;
 
 extern crate gdk;
 extern crate glib;
 extern crate gstreamer;
 extern crate gtk;
+extern crate image;
 
 #[macro_use]
 extern crate lazy_static;
