@@ -121,6 +121,8 @@ impl ChapterTreeManager {
     }
 
     pub fn clear(&mut self) {
+        self.selected_iter = None;
+        self.iter = None;
         self.store.clear();
     }
 
