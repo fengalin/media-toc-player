@@ -188,12 +188,10 @@ impl Context {
                 let name = src_pad.get_name();
 
                 if name.starts_with("audio_") {
-                    let queue = gst::ElementFactory::make("queue", "playback_queue").unwrap();
-
                     let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
                     let resample = gst::ElementFactory::make("audioresample", None).unwrap();
 
-                    let elements = &[&queue, &convert, &resample, &audio_sink];
+                    let elements = &[&convert, &resample, &audio_sink];
 
                     pipeline.add_many(elements).unwrap();
                     gst::Element::link_many(elements).unwrap();
@@ -202,14 +200,13 @@ impl Context {
                         e.sync_state_with_parent().unwrap();
                     }
 
-                    let sink_pad = queue.get_static_pad("sink").unwrap();
+                    let sink_pad = convert.get_static_pad("sink").unwrap();
                     assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
                 } else if name.starts_with("video_") {
-                    let queue = gst::ElementFactory::make("queue", None).unwrap();
                     let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
                     let scale = gst::ElementFactory::make("videoscale", None).unwrap();
 
-                    let elements = &[&queue, &convert, &scale, &video_sink];
+                    let elements = &[&convert, &scale, &video_sink];
                     pipeline.add_many(elements).unwrap();
                     gst::Element::link_many(elements).unwrap();
 
@@ -217,7 +214,7 @@ impl Context {
                         e.sync_state_with_parent().unwrap();
                     }
 
-                    let sink_pad = queue.get_static_pad("sink").unwrap();
+                    let sink_pad = convert.get_static_pad("sink").unwrap();
                     assert_eq!(src_pad.link(&sink_pad), gst::PadLinkReturn::Ok);
                 }
             });
