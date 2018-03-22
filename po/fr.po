@@ -1,0 +1,163 @@
+# French translations for media-toc-player package
+# Traductions françaises du paquet media-toc-player.
+# Copyright (C) 2018 François Laignel
+# This file is distributed under the same license as the media-toc-player package.
+# François Laignel <fengalin@free.fr>, 2018.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: media-toc-player\n"
+"Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
+"POT-Creation-Date: 2018-03-22 14:31+0100\n"
+"PO-Revision-Date: 2018-03-22 14:32+0100\n"
+"Last-Translator: François Laignel <fengalin@free.fr>\n"
+"Language-Team: French\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: src/main.rs:44
+msgid "A media player with a table of contents"
+msgstr "Un lecteur multimédia muni d'une table des matières"
+
+#: src/main.rs:45
+msgid "Display this message"
+msgstr "Affiche ce message"
+
+#: src/main.rs:46
+msgid "Print version information"
+msgstr "Affiche la version"
+
+#: src/main.rs:48
+msgid "MEDIA"
+msgstr "MÉDIA"
+
+#: src/main.rs:57
+msgid "Path to the input media file"
+msgstr "Chemin du fichier multimédia"
+
+#: src/main.rs:66
+msgid "Failed to initialize GTK"
+msgstr "Impossible d'intialiser GTK"
+
+#: src/ui/chapter_tree_manager.rs:65
+msgid "Title"
+msgstr "Titre"
+
+#: src/ui/chapter_tree_manager.rs:66
+msgid "Start"
+msgstr "Début"
+
+#: src/ui/chapter_tree_manager.rs:67
+msgid "End"
+msgstr "Fin"
+
+#: src/ui/main_controller.rs:84
+msgid "media-toc player"
+msgstr "lecteur media-toc"
+
+#: src/ui/main_controller.rs:202
+msgid "Open a media file"
+msgstr "Ouvrir un fichier multimédia"
+
+#: src/ui/main_controller.rs:207
+msgid "Open"
+msgstr "Ouvrir"
+
+#: src/ui/main_controller.rs:302 src/ui/main_controller.rs:380
+msgid "Error opening file. {}"
+msgstr "Erreur à l'ouverture du fichier. {}"
+
+#: src/ui/media-toc-player.ui:120
+msgid "Title:"
+msgstr "Titre :"
+
+#: src/ui/media-toc-player.ui:132
+msgid "Artist:"
+msgstr "Artiste :"
+
+#: src/ui/media-toc-player.ui:144
+msgid "Container:"
+msgstr "Conteneur :"
+
+#: src/ui/media-toc-player.ui:156
+msgid "Video Codec:"
+msgstr "Codec Vidéo :"
+
+#: src/ui/media-toc-player.ui:168
+msgid "Audio Codec:"
+msgstr "Codec Audio :"
+
+#: src/ui/media-toc-player.ui:180
+msgid "Duration:"
+msgstr "Durée :"
+
+#: src/ui/media-toc-player.ui:355
+msgid "00:00.000"
+msgstr "00:00.000"
+
+#: src/ui/media-toc-player.ui:383
+msgid "Play / Pause"
+msgstr "Jouer / Mettre en pause"
+
+#: src/ui/media-toc-player.ui:395
+msgid "Repeat Chapter"
+msgstr "Répéter le chapitre"
+
+#: src/ui/media-toc-player.ui:453
+msgid "display"
+msgstr "affichage"
+
+#: src/ui/media-toc-player.ui:469
+msgid "Video Streams"
+msgstr "Flux vidéos"
+
+#: src/ui/media-toc-player.ui:502
+msgid "Audio Streams"
+msgstr "Flux Audios"
+
+#: src/ui/media-toc-player.ui:535
+msgid "Text Streams"
+msgstr "Flux Textes"
+
+#: src/ui/media-toc-player.ui:565
+msgid "streams"
+msgstr "flux"
+
+#: src/ui/streams_controller.rs:309
+msgid "Stream id"
+msgstr "Id. du flux"
+
+#: src/ui/streams_controller.rs:310
+msgid "Language"
+msgstr "Langue"
+
+#: src/ui/streams_controller.rs:311
+msgid "Codec"
+msgstr "Codec"
+
+#: src/ui/streams_controller.rs:312
+msgid "Comment"
+msgstr "Commentaire"
+
+#: src/ui/streams_controller.rs:331
+msgid "Width"
+msgstr "Largeur"
+
+#: src/ui/streams_controller.rs:338
+msgid "Height"
+msgstr "Hauteur"
+
+#: src/ui/streams_controller.rs:369
+msgid "Rate"
+msgstr "Débit"
+
+#: src/ui/streams_controller.rs:376
+msgid "Channels"
+msgstr "Canaux"
+
+#: src/ui/streams_controller.rs:407
+msgid "Format"
+msgstr "Format"

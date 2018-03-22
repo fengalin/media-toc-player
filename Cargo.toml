@@ -7,6 +7,7 @@ repository = "https://github.com/fengalin/media-toc-player"
 readme = "README.md"
 description = "A media player with a table of contents"
 license = "MIT"
+build = "build.rs"
 
 [[bin]]
 name = "media_toc_player"
@@ -16,6 +17,8 @@ path = "src/main.rs"
 clap = "^2"
 image = "^0"
 lazy_static = "^0"
+
+gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-system"] }
 
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git" }
 gdk = { git = "https://github.com/gtk-rs/gdk.git" }

@@ -1,0 +1,7 @@
+# List of source files containing translatable strings.
+# Please keep this file sorted alphabetically.
+src/main.rs
+src/ui/chapter_tree_manager.rs
+src/ui/main_controller.rs
+src/ui/media-toc-player.ui
+src/ui/streams_controller.rs

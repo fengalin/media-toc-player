@@ -1,6 +1,4 @@
-use glib;
-use gstreamer as gst;
-use gtk;
+use std::error::Error;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -9,9 +7,13 @@ use std::path::PathBuf;
 
 use std::sync::mpsc::{channel, Receiver};
 
-use gdk::{Cursor, CursorType, WindowExt};
-
+use gettextrs::gettext;
+use glib;
+use gstreamer as gst;
+use gtk;
 use gtk::prelude::*;
+
+use gdk::{Cursor, CursorType, WindowExt};
 
 use media::{Context, ContextMessage};
 use media::ContextMessage::*;
@@ -79,7 +81,7 @@ impl MainController {
                 gtk::main_quit();
                 Inhibit(false)
             });
-            this_mut.window.set_titlebar(&this_mut.header_bar);
+            this_mut.header_bar.set_title(gettext("media-toc player").as_str());
 
             let this_rc = Rc::clone(&this);
             this_mut.play_pause_btn.connect_clicked(move |_| {
@@ -197,12 +199,12 @@ impl MainController {
         };
 
         let file_dlg = gtk::FileChooserDialog::new(
-            Some("Open a media file"),
+            Some(&gettext("Open a media file")),
             Some(&self.window),
             gtk::FileChooserAction::Open,
         );
         // Note: couldn't find equivalents for STOCK_OK
-        file_dlg.add_button("Open", gtk::ResponseType::Ok.into());
+        file_dlg.add_button(&gettext("Open"), gtk::ResponseType::Ok.into());
 
         if file_dlg.run() == gtk::ResponseType::Ok.into() {
             if let Some(ref context) = self.context {
@@ -296,8 +298,10 @@ impl MainController {
                         }
                         this.set_context(context);
                     }
-                    FailedToOpenMedia => {
-                        eprintln!("ERROR: failed to open media");
+                    FailedToOpenMedia(error) => {
+                        let error = gettext("Error opening file. {}")
+                            .replace("{}", error.description());
+                        eprintln!("{}", error);
 
                         let mut this = this_rc.borrow_mut();
                         this.context = None;
@@ -373,8 +377,10 @@ impl MainController {
             }
             Err(error) => {
                 self.switch_to_default();
-                eprintln!("Error opening media: {}", error);
-            }
+                let error = gettext("Error opening file. {}")
+                    .replace("{}", &error);
+                eprintln!("{}", error);
+           }
         };
     }
 }
