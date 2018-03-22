@@ -20,6 +20,9 @@ use media::ContextMessage::*;
 
 use super::{InfoController, StreamsController, VideoController};
 
+const PAUSE_ICON: &str = "media-playback-pause-symbolic";
+const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
+
 #[derive(Clone, PartialEq)]
 pub enum ControllerState {
     EOS,
@@ -136,14 +139,14 @@ impl MainController {
             match context.get_state() {
                 gst::State::Paused => {
                     self.register_tracker();
-                    self.play_pause_btn.set_icon_name("media-playback-pause");
+                    self.play_pause_btn.set_icon_name(PAUSE_ICON);
                     self.state = ControllerState::Playing;
                     context.play().unwrap();
                     self.context = Some(context);
                 }
                 gst::State::Playing => {
                     context.pause().unwrap();
-                    self.play_pause_btn.set_icon_name("media-playback-start");
+                    self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
                     self.remove_tracker();
                     self.state = ControllerState::Paused;
                     self.context = Some(context);
@@ -175,7 +178,7 @@ impl MainController {
 
             if self.state == ControllerState::EOS {
                 self.register_tracker();
-                self.play_pause_btn.set_icon_name("media-playback-pause");
+                self.play_pause_btn.set_icon_name(PAUSE_ICON);
                 self.state = ControllerState::Playing;
             }
         }
@@ -207,7 +210,7 @@ impl MainController {
         self.switch_to_busy();
         self.info_bar.hide();
         self.remove_tracker();
-        self.play_pause_btn.set_icon_name("media-playback-start");
+        self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
 
         if let Some(context) = self.context.as_mut() {
             context.pause().unwrap();
@@ -279,7 +282,7 @@ impl MainController {
                         this.video_ctrl.new_media(&context);
 
                         this.register_tracker();
-                        this.play_pause_btn.set_icon_name("media-playback-pause");
+                        this.play_pause_btn.set_icon_name(PAUSE_ICON);
                         this.state = ControllerState::Playing;
                         this.set_context(context);
                     }
@@ -292,7 +295,7 @@ impl MainController {
 
                         this.info_ctrl.borrow_mut().tick(position, true);
 
-                        this.play_pause_btn.set_icon_name("media-playback-start");
+                        this.play_pause_btn.set_icon_name(PLAYBACK_ICON);
                         this.state = ControllerState::EOS;
 
                         // The tracker will be register again in case of a seek
