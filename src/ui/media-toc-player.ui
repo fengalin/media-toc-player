@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Generated with glade 3.20.2 -->
+<!-- Generated with glade 3.20.4 -->
 <interface>
   <requires lib="gtk+" version="3.18"/>
   <object class="GtkListStore" id="audio_streams-liststore">
@@ -37,64 +37,17 @@
   <object class="GtkImage" id="repeat-image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="icon_name">media-playlist-repeat</property>
+    <property name="icon_name">media-playlist-repeat-symbolic</property>
   </object>
   <object class="GtkImage" id="show_chapters-image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="stock">gtk-index</property>
+    <property name="icon_name">emblem-documents-symbolic</property>
   </object>
   <object class="GtkImage" id="streams-image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="stock">gtk-justify-fill</property>
-  </object>
-  <object class="GtkHeaderBar" id="header-bar">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="title">Media Table Of Contents Player</property>
-    <property name="show_close_button">True</property>
-    <child>
-      <object class="GtkButton" id="open-btn">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <child>
-          <object class="GtkImage">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="stock">gtk-open</property>
-          </object>
-        </child>
-      </object>
-    </child>
-    <child>
-      <object class="GtkToggleButton" id="show_chapters-toggle">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <property name="image">show_chapters-image</property>
-        <property name="always_show_image">True</property>
-        <property name="active">True</property>
-      </object>
-      <packing>
-        <property name="pack_type">end</property>
-        <property name="position">1</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkToggleButton" id="streams-toggle">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="receives_default">True</property>
-        <property name="image">streams-image</property>
-        <property name="always_show_image">True</property>
-      </object>
-      <packing>
-        <property name="pack_type">end</property>
-        <property name="position">2</property>
-      </packing>
-    </child>
+    <property name="icon_name">document-properties-symbolic</property>
   </object>
   <object class="GtkListStore" id="text_streams-liststore">
     <columns>
@@ -419,6 +372,7 @@
                 <property name="valign">end</property>
                 <property name="toolbar_style">icons</property>
                 <property name="show_arrow">False</property>
+                <property name="icon_size">2</property>
                 <child>
                   <object class="GtkToolButton" id="play_pause-toolbutton">
                     <property name="visible">True</property>
@@ -427,7 +381,7 @@
                     <property name="valign">end</property>
                     <property name="visible_vertical">False</property>
                     <property name="label" translatable="yes">Play / Pause</property>
-                    <property name="icon_name">media-playback-start</property>
+                    <property name="icon_name">media-playback-start-symbolic</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -622,7 +576,53 @@
       </object>
     </child>
     <child type="titlebar">
-      <placeholder/>
+      <object class="GtkHeaderBar" id="header-bar">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="title">media-toc player</property>
+        <property name="show_close_button">True</property>
+        <child>
+          <object class="GtkButton" id="open-btn">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <child>
+              <object class="GtkImage">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="icon_name">document-open-symbolic</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkToggleButton" id="show_chapters-toggle">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="image">show_chapters-image</property>
+            <property name="always_show_image">True</property>
+            <property name="active">True</property>
+          </object>
+          <packing>
+            <property name="pack_type">end</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkToggleButton" id="streams-toggle">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="image">streams-image</property>
+            <property name="always_show_image">True</property>
+          </object>
+          <packing>
+            <property name="pack_type">end</property>
+            <property name="position">2</property>
+          </packing>
+        </child>
+      </object>
     </child>
   </object>
 </interface>
