@@ -35,6 +35,8 @@ pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
     play_pause_btn: gtk::ToolButton,
+    info_bar: gtk::InfoBar,
+    info_bar_lbl: gtk::Label,
 
     video_ctrl: VideoController,
     info_ctrl: Rc<RefCell<InfoController>>,
@@ -56,6 +58,8 @@ impl MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
+            info_bar: builder.get_object("info-bar").unwrap(),
+            info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
 
             video_ctrl: VideoController::new(builder),
             info_ctrl: InfoController::new(builder),
@@ -91,6 +95,8 @@ impl MainController {
             // TODO: add key bindings to seek by steps
             // play/pause, etc.
 
+            this_mut.info_bar.connect_response(|info_bar, _| info_bar.hide());
+
             VideoController::register_callbacks(&this_mut.video_ctrl, &this);
             InfoController::register_callbacks(&this_mut.info_ctrl, &this);
             StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
@@ -107,6 +113,14 @@ impl MainController {
 
     pub fn show_all(&self) {
         self.window.show_all();
+    }
+
+    pub fn show_message(&self, type_: gtk::MessageType, message: &str) {
+        self.info_bar.set_message_type(type_);
+        self.info_bar_lbl.set_label(message);
+        self.info_bar.show();
+        // workaround see: https://bugzilla.gnome.org/show_bug.cgi?id=710888
+        self.info_bar.queue_resize();
     }
 
     pub fn play_pause(&mut self) {
@@ -191,6 +205,7 @@ impl MainController {
 
     fn select_media(&mut self) {
         self.switch_to_busy();
+        self.info_bar.hide();
         self.remove_tracker();
         self.play_pause_btn.set_icon_name("media-playback-start");
 
@@ -308,6 +323,8 @@ impl MainController {
                         this.state = ControllerState::Stopped;
                         this.switch_to_default();
 
+                        this.show_message(gtk::MessageType::Error, &error);
+
                         this.keep_going = false;
                         keep_going = false;
                     }
@@ -380,6 +397,7 @@ impl MainController {
                 let error = gettext("Error opening file. {}")
                     .replace("{}", &error);
                 eprintln!("{}", error);
+                self.show_message(gtk::MessageType::Error, &error);
            }
         };
     }
