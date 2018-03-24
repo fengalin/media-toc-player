@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-22 14:31+0100\n"
-"PO-Revision-Date: 2018-03-22 14:32+0100\n"
+"POT-Creation-Date: 2018-03-24 16:35+0100\n"
+"PO-Revision-Date: 2018-03-24 16:35+0100\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: French\n"
 "Language: fr\n"
@@ -54,110 +54,122 @@ msgstr "Début"
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/main_controller.rs:84
+#: src/ui/main_controller.rs:93
 msgid "media-toc player"
 msgstr "lecteur media-toc"
 
-#: src/ui/main_controller.rs:202
+#: src/ui/main_controller.rs:223
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:207
+#: src/ui/main_controller.rs:228
 msgid "Open"
 msgstr "Ouvrir"
 
-#: src/ui/main_controller.rs:302 src/ui/main_controller.rs:380
+#: src/ui/main_controller.rs:324 src/ui/main_controller.rs:405
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
+#: src/ui/media-toc-player.ui:75
+msgid "Display"
+msgstr "Affichage"
+
 #: src/ui/media-toc-player.ui:120
+msgid "Streams"
+msgstr "Flux"
+
+#: src/ui/media-toc-player.ui:221
 msgid "Title:"
 msgstr "Titre :"
 
-#: src/ui/media-toc-player.ui:132
+#: src/ui/media-toc-player.ui:233
 msgid "Artist:"
 msgstr "Artiste :"
 
-#: src/ui/media-toc-player.ui:144
+#: src/ui/media-toc-player.ui:245
 msgid "Container:"
 msgstr "Conteneur :"
 
-#: src/ui/media-toc-player.ui:156
+#: src/ui/media-toc-player.ui:257
 msgid "Video Codec:"
 msgstr "Codec Vidéo :"
 
-#: src/ui/media-toc-player.ui:168
+#: src/ui/media-toc-player.ui:269
 msgid "Audio Codec:"
 msgstr "Codec Audio :"
 
-#: src/ui/media-toc-player.ui:180
+#: src/ui/media-toc-player.ui:281
 msgid "Duration:"
 msgstr "Durée :"
 
-#: src/ui/media-toc-player.ui:355
-msgid "00:00.000"
-msgstr "00:00.000"
+#: src/ui/media-toc-player.ui:467
+msgid "Info text"
+msgstr ""
 
-#: src/ui/media-toc-player.ui:383
-msgid "Play / Pause"
-msgstr "Jouer / Mettre en pause"
-
-#: src/ui/media-toc-player.ui:395
-msgid "Repeat Chapter"
-msgstr "Répéter le chapitre"
-
-#: src/ui/media-toc-player.ui:453
+#: src/ui/media-toc-player.ui:529
 msgid "display"
 msgstr "affichage"
 
-#: src/ui/media-toc-player.ui:469
+#: src/ui/media-toc-player.ui:545
 msgid "Video Streams"
 msgstr "Flux vidéos"
 
-#: src/ui/media-toc-player.ui:502
+#: src/ui/media-toc-player.ui:578
 msgid "Audio Streams"
 msgstr "Flux Audios"
 
-#: src/ui/media-toc-player.ui:535
+#: src/ui/media-toc-player.ui:611
 msgid "Text Streams"
 msgstr "Flux Textes"
 
-#: src/ui/media-toc-player.ui:565
+#: src/ui/media-toc-player.ui:641
 msgid "streams"
 msgstr "flux"
 
-#: src/ui/streams_controller.rs:309
+#: src/ui/media-toc-player.ui:678
+msgid "00:00.000"
+msgstr "00:00.000"
+
+#: src/ui/media-toc-player.ui:706
+msgid "Play / Pause"
+msgstr "Jouer / Mettre en pause"
+
+#: src/ui/media-toc-player.ui:718
+msgid "Repeat Chapter"
+msgstr "Répéter le chapitre"
+
+#: src/ui/streams_controller.rs:286
 msgid "Stream id"
 msgstr "Id. du flux"
 
-#: src/ui/streams_controller.rs:310
+#: src/ui/streams_controller.rs:287
 msgid "Language"
 msgstr "Langue"
 
-#: src/ui/streams_controller.rs:311
+#: src/ui/streams_controller.rs:288
 msgid "Codec"
 msgstr "Codec"
 
-#: src/ui/streams_controller.rs:312
+#: src/ui/streams_controller.rs:289
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:331
+#: src/ui/streams_controller.rs:308
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:338
+#: src/ui/streams_controller.rs:315
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:369
+#: src/ui/streams_controller.rs:346
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:376
+#: src/ui/streams_controller.rs:353
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:407
+#: src/ui/streams_controller.rs:384
 msgid "Format"
 msgstr "Format"
