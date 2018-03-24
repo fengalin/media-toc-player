@@ -62,7 +62,7 @@ impl ChapterTreeManager {
 
     pub fn init_treeview(&self, treeview: &gtk::TreeView) {
         treeview.set_model(Some(&self.store));
-        self.add_column(treeview, &gettext("Title"), TITLE_COL, true, true);
+        self.add_column(treeview, &gettext("Title"), TITLE_COL, true, false);
         self.add_column(treeview, &gettext("Start"), START_STR_COL, false, false);
         self.add_column(treeview, &gettext("End"), END_STR_COL, false, false);
     }
