@@ -8,15 +8,16 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-24 16:35+0100\n"
-"PO-Revision-Date: 2018-03-24 16:35+0100\n"
+"POT-Creation-Date: 2018-03-26 18:49+0200\n"
+"PO-Revision-Date: 2018-03-26 18:51+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
-"Language-Team: French\n"
+"Language-Team: français <>\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"X-Generator: Gtranslator 2.91.7\n"
 
 #: src/main.rs:44
 msgid "A media player with a table of contents"
@@ -42,6 +43,10 @@ msgstr "Chemin du fichier multimédia"
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'intialiser GTK"
 
+#: src/metadata/mkvmerge_text_format.rs:68
+msgid "Error reading mkvmerge text file."
+msgstr "Erreur à la lecture du fichier texte mkvmerge"
+
 #: src/ui/chapter_tree_manager.rs:65
 msgid "Title"
 msgstr "Titre"
@@ -53,6 +58,10 @@ msgstr "Début"
 #: src/ui/chapter_tree_manager.rs:67
 msgid "End"
 msgstr "Fin"
+
+#: src/ui/info_controller.rs:280
+msgid "Failed to open toc file."
+msgstr "Impossible d'ouvrir le fichier de table des matières."
 
 #: src/ui/main_controller.rs:93
 msgid "media-toc player"
@@ -70,73 +79,73 @@ msgstr "Ouvrir"
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/media-toc-player.ui:75
-msgid "Display"
-msgstr "Affichage"
-
-#: src/ui/media-toc-player.ui:120
-msgid "Streams"
-msgstr "Flux"
-
-#: src/ui/media-toc-player.ui:221
+#: src/ui/media-toc-player.ui:147
 msgid "Title:"
 msgstr "Titre :"
 
-#: src/ui/media-toc-player.ui:233
+#: src/ui/media-toc-player.ui:159
 msgid "Artist:"
 msgstr "Artiste :"
 
-#: src/ui/media-toc-player.ui:245
+#: src/ui/media-toc-player.ui:171
 msgid "Container:"
 msgstr "Conteneur :"
 
-#: src/ui/media-toc-player.ui:257
+#: src/ui/media-toc-player.ui:183
 msgid "Video Codec:"
 msgstr "Codec Vidéo :"
 
-#: src/ui/media-toc-player.ui:269
+#: src/ui/media-toc-player.ui:195
 msgid "Audio Codec:"
 msgstr "Codec Audio :"
 
-#: src/ui/media-toc-player.ui:281
+#: src/ui/media-toc-player.ui:207
 msgid "Duration:"
 msgstr "Durée :"
 
-#: src/ui/media-toc-player.ui:467
+#: src/ui/media-toc-player.ui:393
 msgid "Info text"
-msgstr ""
+msgstr "Message d'information"
 
-#: src/ui/media-toc-player.ui:529
+#: src/ui/media-toc-player.ui:455
 msgid "display"
 msgstr "affichage"
 
-#: src/ui/media-toc-player.ui:545
+#: src/ui/media-toc-player.ui:474
 msgid "Video Streams"
 msgstr "Flux vidéos"
 
-#: src/ui/media-toc-player.ui:578
+#: src/ui/media-toc-player.ui:508
 msgid "Audio Streams"
 msgstr "Flux Audios"
 
-#: src/ui/media-toc-player.ui:611
+#: src/ui/media-toc-player.ui:542
 msgid "Text Streams"
 msgstr "Flux Textes"
 
-#: src/ui/media-toc-player.ui:641
+#: src/ui/media-toc-player.ui:572
 msgid "streams"
 msgstr "flux"
 
-#: src/ui/media-toc-player.ui:678
+#: src/ui/media-toc-player.ui:609
 msgid "00:00.000"
 msgstr "00:00.000"
 
-#: src/ui/media-toc-player.ui:706
+#: src/ui/media-toc-player.ui:637
 msgid "Play / Pause"
 msgstr "Jouer / Mettre en pause"
 
-#: src/ui/media-toc-player.ui:718
+#: src/ui/media-toc-player.ui:649
 msgid "Repeat Chapter"
 msgstr "Répéter le chapitre"
+
+#: src/ui/media-toc-player.ui:799
+msgid "Display"
+msgstr "Affichage"
+
+#: src/ui/media-toc-player.ui:844
+msgid "Streams"
+msgstr "Flux"
 
 #: src/ui/streams_controller.rs:286
 msgid "Stream id"

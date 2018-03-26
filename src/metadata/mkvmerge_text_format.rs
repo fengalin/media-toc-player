@@ -1,3 +1,4 @@
+use gettextrs::gettext;
 use gstreamer as gst;
 
 use std::io::Read;
@@ -33,7 +34,7 @@ impl Reader for MKVMergeTextFormat {
         &self,
         info: &MediaInfo,
         source: &mut Read,
-    ) -> Option<gst::Toc> {
+    ) -> Result<gst::Toc, String> {
         fn add_chapter(
             parent: &mut gst::TocEntry,
             mut nb: Option<usize>,
@@ -64,10 +65,13 @@ impl Reader for MKVMergeTextFormat {
                 .append_sub_entry(chapter);
         }
 
+        let error_msg = gettext("Error reading mkvmerge text file.");
+
         let mut content = String::new();
-        source
-            .read_to_string(&mut content)
-            .expect("MKVMergeTextFormat::read failed reading source content");
+        if source.read_to_string(&mut content).is_err() {
+            eprintln!("MKVMergeTextFormat::read failed reading source content");
+            return Err(error_msg);
+        }
 
         let mut toc_edition = gst::TocEntry::new(gst::TocEntryType::Edition, "");
         let mut last_nb = None;
@@ -84,10 +88,13 @@ impl Reader for MKVMergeTextFormat {
                         .parse::<usize>()
                     {
                         Ok(chapter_nb) => chapter_nb,
-                        Err(_) => panic!(
-                            "MKVMergeTextFormat::read couldn't find chapter nb for: {}",
-                            line,
-                        ),
+                        Err(_) => {
+                            eprintln!(
+                                "MKVMergeTextFormat::read couldn't find chapter nb for: {}",
+                                line,
+                            );
+                            return Err(error_msg);
+                        }
                     };
 
                     if tag.ends_with(NAME_TAG) {
@@ -112,24 +119,32 @@ impl Reader for MKVMergeTextFormat {
                         last_nb = Some(cur_nb);
                     }
                 } else {
-                    panic!("MKVMergeTextFormat::read unexpected format for: {}", line);
+                    eprintln!("MKVMergeTextFormat::read unexpected format for: {}", line);
+                    return Err(error_msg);
                 }
             } else {
-                panic!("MKVMergeTextFormat::read expected '=' for: {}", line);
+                eprintln!("MKVMergeTextFormat::read expected '=' for: {}", line);
+                return Err(error_msg);
             }
         }
 
-        last_start.take().map(|last_start| {
-            add_chapter(
-                &mut toc_edition,
-                last_nb,
-                last_start,
-                info.duration,
-                last_title,
-            );
-            let mut toc = gst::Toc::new(gst::TocScope::Global);
-            toc.get_mut().unwrap().append_entry(toc_edition);
-            toc
-        })
+        last_start.take().map_or_else(
+            || {
+                eprintln!("MKVMergeTextFormat::read couldn't update last start");
+                Err(error_msg)
+            },
+            |last_start| {
+                add_chapter(
+                    &mut toc_edition,
+                    last_nb,
+                    last_start,
+                    info.duration,
+                    last_title,
+                );
+                let mut toc = gst::Toc::new(gst::TocScope::Global);
+                toc.get_mut().unwrap().append_entry(toc_edition);
+                Ok(toc)
+            }
+        )
     }
 }

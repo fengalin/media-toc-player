@@ -1,5 +1,6 @@
 use cairo;
 
+use gettextrs::gettext;
 use gtk;
 use gtk::prelude::*;
 
@@ -190,6 +191,16 @@ impl InfoController {
         Inhibit(true)
     }
 
+    fn show_error(&self, message: String) {
+        let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
+        gtk::idle_add(move || {
+            let main_ctrl_rc = main_ctrl_weak.upgrade()
+                .expect("InfoController::show_error can't upgrade main_ctrl");
+            main_ctrl_rc.borrow().show_message(gtk::MessageType::Error, &message);
+            glib::Continue(false)
+        });
+    }
+
     pub fn new_media(&mut self, context: &Context) {
         let media_path = context.path.clone();
         let file_stem = media_path
@@ -254,23 +265,36 @@ impl InfoController {
 
             self.streams_changed(&info);
 
-            match toc_candidates.next() {
-                Some((toc_path, format)) => {
-                    let mut toc_file = File::open(toc_path)
-                        .expect("InfoController::new_media failed to open toc file");
-                    self.chapter_manager.replace_with(&metadata::Factory::get_reader(&format)
-                        .read(&info, &mut toc_file)
-                    );
+            let extern_toc = toc_candidates.next().map_or(None, |(toc_path, format)| {
+                match File::open(toc_path) {
+                    Ok(mut toc_file) =>  {
+                        match metadata::Factory::get_reader(&format).read(&info, &mut toc_file) {
+                            Ok(toc) => Some(toc),
+                            Err(err) => {
+                                self.show_error(err);
+                                None
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        self.show_error(gettext("Failed to open toc file."));
+                        None
+                    }
                 }
-                None => self.chapter_manager.replace_with(&info.toc),
-            }
+            });
 
-            self.update_marks();
-
-            if let Some(current_iter) = self.chapter_manager.get_selected_iter() {
-                // position is in a chapter => select it
-                self.chapter_treeview.get_selection().select_iter(&current_iter);
+            if extern_toc.is_some() {
+                self.chapter_manager.replace_with(&extern_toc);
+            } else {
+                self.chapter_manager.replace_with(&info.toc);
             }
+        }
+
+        self.update_marks();
+
+        if let Some(current_iter) = self.chapter_manager.get_selected_iter() {
+            // position is in a chapter => select it
+            self.chapter_treeview.get_selection().select_iter(&current_iter);
         }
     }
 

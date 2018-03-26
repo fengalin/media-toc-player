@@ -57,6 +57,8 @@
         ],
         "append-path": "/usr/lib/sdk/rust-stable/bin",
         "env": {
+          "CARGO_HOME" : "/run/build/media-toc-player/cargo",
+          "DEBUG" : "true",
           "V": "1"
         }
       },
