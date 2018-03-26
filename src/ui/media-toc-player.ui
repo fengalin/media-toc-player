@@ -65,112 +65,6 @@ Author: François Laignel
       <column type="gchararray"/>
     </columns>
   </object>
-  <object class="GtkPopoverMenu" id="perspective-popovermenu">
-    <property name="can_focus">False</property>
-    <property name="relative_to">perspective-menu-btn</property>
-    <child>
-      <object class="GtkBox" id="perspective-popovermenu-box">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <property name="margin_top">6</property>
-        <property name="margin_bottom">6</property>
-        <property name="orientation">vertical</property>
-        <child>
-          <object class="GtkButton" id="perspective-display-btn">
-            <property name="name">perspective-display-btn</property>
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="relief">none</property>
-            <child>
-              <object class="GtkBox" id="perspective-display-box">
-                <property name="visible">True</property>
-                <property name="can_focus">False</property>
-                <property name="spacing">5</property>
-                <child>
-                  <object class="GtkImage" id="perspective-display-image">
-                    <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="icon_name">applications-multimedia-symbolic</property>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkLabel" id="perspective-display-lb">
-                    <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="label" translatable="yes">Display</property>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">1</property>
-                  </packing>
-                </child>
-              </object>
-            </child>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">0</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkButton" id="perspective-streams-btn">
-            <property name="name">perspective-streams-btn</property>
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="relief">none</property>
-            <child>
-              <object class="GtkBox" id="perspective-streams-box">
-                <property name="visible">True</property>
-                <property name="can_focus">False</property>
-                <property name="spacing">5</property>
-                <child>
-                  <object class="GtkImage" id="perspective-streams-image">
-                    <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="icon_name">open-menu-symbolic</property>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkLabel" id="perspective-streams-lbl">
-                    <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="label" translatable="yes">Streams</property>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">1</property>
-                  </packing>
-                </child>
-              </object>
-            </child>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">1</property>
-          </packing>
-        </child>
-      </object>
-      <packing>
-        <property name="submenu">main</property>
-      </packing>
-    </child>
-  </object>
   <object class="GtkImage" id="repeat-image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
@@ -232,7 +126,6 @@ Author: François Laignel
           <object class="GtkGrid" id="info-chapter_list-grid">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
-            <property name="margin_left">5</property>
             <property name="margin_right">4</property>
             <property name="margin_top">5</property>
             <child>
@@ -241,6 +134,8 @@ Author: François Laignel
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="valign">start</property>
+                <property name="margin_left">5</property>
+                <property name="margin_right">5</property>
                 <property name="hexpand">True</property>
                 <property name="row_spacing">5</property>
                 <property name="column_spacing">10</property>
@@ -564,6 +459,8 @@ Author: François Laignel
                   <object class="GtkBox" id="streams-box">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="margin_left">40</property>
+                    <property name="margin_right">40</property>
                     <property name="hexpand">True</property>
                     <property name="vexpand">True</property>
                     <property name="orientation">vertical</property>
@@ -572,6 +469,7 @@ Author: François Laignel
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="halign">start</property>
+                        <property name="margin_left">6</property>
                         <property name="margin_top">10</property>
                         <property name="label" translatable="yes">Video Streams</property>
                       </object>
@@ -605,6 +503,7 @@ Author: François Laignel
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="halign">start</property>
+                        <property name="margin_left">6</property>
                         <property name="margin_top">10</property>
                         <property name="label" translatable="yes">Audio Streams</property>
                       </object>
@@ -638,6 +537,7 @@ Author: François Laignel
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="halign">start</property>
+                        <property name="margin_left">6</property>
                         <property name="margin_top">10</property>
                         <property name="label" translatable="yes">Text Streams</property>
                       </object>
@@ -856,6 +756,113 @@ Author: François Laignel
           </packing>
         </child>
       </object>
+    </child>
+  </object>
+  <object class="GtkPopoverMenu" id="perspective-popovermenu">
+    <property name="can_focus">False</property>
+    <property name="relative_to">perspective-menu-btn</property>
+    <child>
+      <object class="GtkBox" id="perspective-popovermenu-box">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="margin_top">6</property>
+        <property name="margin_bottom">6</property>
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="GtkButton" id="perspective-display-btn">
+            <property name="name">perspective-display-btn</property>
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="relief">none</property>
+            <child>
+              <object class="GtkBox" id="perspective-display-box">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="spacing">5</property>
+                <child>
+                  <object class="GtkImage" id="perspective-display-image">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="icon_name">applications-multimedia-symbolic</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="perspective-display-lb">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="label" translatable="yes">Display</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButton" id="perspective-streams-btn">
+            <property name="name">perspective-streams-btn</property>
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="relief">none</property>
+            <child>
+              <object class="GtkBox" id="perspective-streams-box">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="spacing">5</property>
+                <child>
+                  <object class="GtkImage" id="perspective-streams-image">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="icon_name">open-menu-symbolic</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="perspective-streams-lbl">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="label" translatable="yes">Streams</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+      </object>
+      <packing>
+        <property name="submenu">main</property>
+        <property name="position">1</property>
+      </packing>
     </child>
   </object>
 </interface>
