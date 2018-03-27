@@ -65,10 +65,8 @@ brew install gtk+3 gstreamer gst-plugins-{base,good,bad,ugly} gst-libav
 - Install the development toolchain, GTK and GStreamer<br>
 Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
-pacman --noconfirm -S mingw-w64-x86_64-gtk3 \
-	mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-plugins-base \
-	mingw-w64-x86_64-gst-plugins-good mingw-w64-x86_64-gst-plugins-bad \
-	mingw-w64-x86_64-gst-plugins-ugly mingw-w64-x86_64-gst-libav
+pacman --noconfirm -S gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer \
+	mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
 ```
 
 - Launch the [rustup installer](https://www.rustup.rs/).
@@ -77,7 +75,7 @@ When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
 - From a MSYS2 mingw shell
   - add cargo to the `PATH`:
   ```
-  echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> /c/Users/'$USER'/.bashrc
+  echo 'PATH=$PATH:/c/Users/'$USER'/.cargo/bin' >> /home/$USER/.bashrc
   ```
   - Restart the MSYS2 shell before using `cargo`.
 
