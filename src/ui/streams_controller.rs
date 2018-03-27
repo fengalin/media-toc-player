@@ -8,7 +8,7 @@ use gtk::prelude::*;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-use media::Context;
+use media::PlaybackContext;
 
 use metadata::Stream;
 
@@ -140,7 +140,7 @@ impl StreamsController {
         self.text_selected = None;
     }
 
-    pub fn new_media(&mut self, context: &Context) {
+    pub fn new_media(&mut self, context: &PlaybackContext) {
         let info = context
             .info
             .lock()

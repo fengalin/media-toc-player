@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-26 18:49+0200\n"
-"PO-Revision-Date: 2018-03-26 18:51+0200\n"
+"POT-Creation-Date: 2018-03-27 19:18+0200\n"
+"PO-Revision-Date: 2018-03-27 19:20+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -39,9 +39,29 @@ msgstr "MÉDIA"
 msgid "Path to the input media file"
 msgstr "Chemin du fichier multimédia"
 
-#: src/main.rs:66
+#: src/main.rs:62
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'intialiser GTK"
+
+#: src/media/context.rs:94
+msgid ""
+"Missing `decodebin3`\n"
+"check your gst-plugins-base install"
+msgstr ""
+"`decodebin3` manquant\n"
+"Vérifiez l'installation de gst-plugin-base"
+
+#: src/media/context.rs:113
+msgid "Couldn't find GStreamer GTK video sink."
+msgstr "Impossible de trouver l'élément « GTK video sink »."
+
+#: src/media/context.rs:114
+msgid "Video playback will be disabled."
+msgstr "L'affichage vidéo sera désactivé."
+
+#: src/media/context.rs:115
+msgid "Please install {} or {}, depending on your distribution."
+msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
 #: src/metadata/mkvmerge_text_format.rs:68
 msgid "Error reading mkvmerge text file."
@@ -59,23 +79,27 @@ msgstr "Début"
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/info_controller.rs:280
+#: src/ui/info_controller.rs:284
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:93
+#: src/ui/main_controller.rs:95
 msgid "media-toc player"
 msgstr "lecteur media-toc"
 
-#: src/ui/main_controller.rs:223
+#: src/ui/main_controller.rs:134
+msgid "Failed to initialize GStreamer, the application can't be used."
+msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
+
+#: src/ui/main_controller.rs:246
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:228
+#: src/ui/main_controller.rs:251
 msgid "Open"
 msgstr "Ouvrir"
 
-#: src/ui/main_controller.rs:324 src/ui/main_controller.rs:405
+#: src/ui/main_controller.rs:347 src/ui/main_controller.rs:428
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
@@ -127,23 +151,23 @@ msgstr "Flux Textes"
 msgid "streams"
 msgstr "flux"
 
-#: src/ui/media-toc-player.ui:609
+#: src/ui/media-toc-player.ui:610
 msgid "00:00.000"
 msgstr "00:00.000"
 
-#: src/ui/media-toc-player.ui:637
+#: src/ui/media-toc-player.ui:639
 msgid "Play / Pause"
 msgstr "Jouer / Mettre en pause"
 
-#: src/ui/media-toc-player.ui:649
+#: src/ui/media-toc-player.ui:652
 msgid "Repeat Chapter"
 msgstr "Répéter le chapitre"
 
-#: src/ui/media-toc-player.ui:799
+#: src/ui/media-toc-player.ui:804
 msgid "Display"
 msgstr "Affichage"
 
-#: src/ui/media-toc-player.ui:844
+#: src/ui/media-toc-player.ui:849
 msgid "Streams"
 msgstr "Flux"
 

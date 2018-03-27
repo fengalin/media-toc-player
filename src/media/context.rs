@@ -1,3 +1,4 @@
+use gettextrs::gettext;
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer::{BinExt, ClockTime, ElementFactory, GstObjectExt, PadExt};
@@ -20,13 +21,7 @@ use super::ContextMessage;
 // as it contains a gtk::Widget
 // GLGTKSink not used because it causes high CPU usage on some systems.
 lazy_static! {
-    static ref VIDEO_SINK: gst::Element =
-        ElementFactory::make("gtksink", "video_sink")
-            .expect(concat!(
-                r#"Couldn't find GStreamer GTK video sink. Please install "#,
-                r#"gstreamer1-plugins-bad-free-gtk or gstreamer1.0-plugins-bad, "#,
-                r#"depenging on your distribution."#
-            ));
+    static ref VIDEO_SINK: Option<gst::Element> = ElementFactory::make("gtksink", "video_sink");
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,7 +32,7 @@ pub enum PipelineState {
     StreamsSelected,
 }
 
-pub struct Context {
+pub struct PlaybackContext {
     pipeline: gst::Pipeline,
     decodebin: gst::Element,
     position_element: Option<gst::Element>,
@@ -51,7 +46,7 @@ pub struct Context {
 }
 
 // FIXME: might need to `release_request_pad` on the tee
-impl Drop for Context {
+impl Drop for PlaybackContext {
     fn drop(&mut self) {
         if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
             self.pipeline.remove(&video_sink).unwrap();
@@ -59,13 +54,13 @@ impl Drop for Context {
     }
 }
 
-impl Context {
-    pub fn new(path: PathBuf, ctx_tx: Sender<ContextMessage>) -> Result<Context, String> {
+impl PlaybackContext {
+    pub fn new(path: PathBuf, ctx_tx: Sender<ContextMessage>) -> Result<PlaybackContext, String> {
         println!("\n\n* Opening {:?}...", path);
 
         let file_name = String::from(path.file_name().unwrap().to_str().unwrap());
 
-        let mut this = Context {
+        let mut this = PlaybackContext {
             pipeline: gst::Pipeline::new("pipeline"),
             decodebin: gst::ElementFactory::make("decodebin3", None).unwrap(),
             position_element: None,
@@ -85,7 +80,7 @@ impl Context {
             .expect("Context::new failed to lock media info")
             .file_name = file_name;
 
-        this.build_pipeline((*VIDEO_SINK).clone());
+        this.build_pipeline((*VIDEO_SINK).as_ref().unwrap().clone());
         this.register_bus_inspector(ctx_tx);
 
         match this.play() {
@@ -94,11 +89,43 @@ impl Context {
         }
     }
 
-    pub fn get_video_widget() -> gtk::Widget {
-        let widget_val = (*VIDEO_SINK).get_property("widget").unwrap();
+    pub fn check_requirements() -> Result<(), String> {
+        gst::ElementFactory::make("decodebin3", None).map_or(
+            Err(gettext("Missing `decodebin3`\ncheck your gst-plugins-base install")),
+            |_| Ok(())
+        )
+            .and_then(|_| {
+                gst::ElementFactory::make("gtksink", None).map_or_else(
+                    || {
+                        let (major, minor, micro, _nano) = gst::version();
+                        let (variant1, variant2) = if major >= 1 && minor >= 13 && micro >= 1 {
+                            (
+                                "gstreamer1-plugins-base",
+                                "gstreamer1.0-plugins-base",
+                            )
+                        } else {
+                            (
+                                "gstreamer1-plugins-bad-free-gtk",
+                                "gstreamer1.0-plugins-bad",
+                            )
+                        };
+                        Err(format!("{} {}\n{}",
+                            gettext("Couldn't find GStreamer GTK video sink."),
+                            gettext("Video playback will be disabled."),
+                            gettext("Please install {} or {}, depending on your distribution.")
+                                .replacen("{}", variant1, 1)
+                                .replacen("{}", variant2, 1),
+                        ))
+                    },
+                    |_| Ok(())
+                )
+            })
+    }
+
+    pub fn get_video_widget() -> Option<gtk::Widget> {
+        let widget_val = (*VIDEO_SINK).as_ref().unwrap().get_property("widget").unwrap();
         widget_val
             .get::<gtk::Widget>()
-            .expect("Failed to get GstGtkWidget glib::Value as gtk::Widget")
     }
 
     pub fn get_position(&mut self) -> u64 {

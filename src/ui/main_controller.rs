@@ -15,7 +15,7 @@ use gtk::prelude::*;
 
 use gdk::{Cursor, CursorType, WindowExt};
 
-use media::{Context, ContextMessage};
+use media::{PlaybackContext, ContextMessage};
 use media::ContextMessage::*;
 
 use super::{InfoController, PerspectiveController, StreamsController, VideoController};
@@ -37,6 +37,7 @@ const TRACKER_PERIOD: u32 = 40; //  40 ms (25 Hz)
 pub struct MainController {
     window: gtk::ApplicationWindow,
     header_bar: gtk::HeaderBar,
+    open_btn: gtk::Button,
     play_pause_btn: gtk::ToolButton,
     info_bar: gtk::InfoBar,
     info_bar_lbl: gtk::Label,
@@ -46,7 +47,7 @@ pub struct MainController {
     info_ctrl: Rc<RefCell<InfoController>>,
     streams_ctrl: Rc<RefCell<StreamsController>>,
 
-    context: Option<Context>,
+    context: Option<PlaybackContext>,
     state: ControllerState,
     seeking: bool,
 
@@ -57,10 +58,11 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
+    pub fn new(builder: &gtk::Builder, is_gst_ok: bool) -> Rc<RefCell<Self>> {
         let this = Rc::new(RefCell::new(MainController {
             window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
+            open_btn: builder.get_object("open-btn").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
             info_bar: builder.get_object("info-bar").unwrap(),
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
@@ -92,27 +94,48 @@ impl MainController {
             });
             this_mut.header_bar.set_title(gettext("media-toc player").as_str());
 
-            let this_rc = Rc::clone(&this);
-            this_mut.play_pause_btn.connect_clicked(move |_| {
-                this_rc.borrow_mut().play_pause();
-            });
+            if is_gst_ok {
+                this_mut.info_bar.connect_response(|info_bar, _| info_bar.hide());
 
-            // TODO: add key bindings to seek by steps
-            // play/pause, etc.
+                this_mut.video_ctrl.register_callbacks(&this);
+                PerspectiveController::register_callbacks(&this_mut.perspective_ctrl, &this);
+                InfoController::register_callbacks(&this_mut.info_ctrl, &this);
+                StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
 
-            this_mut.info_bar.connect_response(|info_bar, _| info_bar.hide());
+                let mut req_err = PlaybackContext::check_requirements().err();
+                if req_err.is_some() {
+                    let err = req_err.take().unwrap();
+                    eprintln!("{}", err);
+                    let this_rc = Rc::clone(&this);
+                    gtk::idle_add(move || {
+                        this_rc.borrow().show_message(gtk::MessageType::Warning, &err);
+                        glib::Continue(false)
+                    });
+                }
 
-            PerspectiveController::register_callbacks(&this_mut.perspective_ctrl, &this);
-            VideoController::register_callbacks(&this_mut.video_ctrl, &this);
-            InfoController::register_callbacks(&this_mut.info_ctrl, &this);
-            StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
+                let this_rc = Rc::clone(&this);
+                this_mut.open_btn.connect_clicked(move |_| {
+                    this_rc.borrow_mut().select_media();
+                });
+                this_mut.open_btn.set_sensitive(true);
+
+                let this_rc = Rc::clone(&this);
+                this_mut.play_pause_btn.connect_clicked(move |_| {
+                    this_rc.borrow_mut().play_pause();
+                });
+                this_mut.play_pause_btn.set_sensitive(true);
+
+                // TODO: add key bindings to seek by steps
+                // play/pause, etc.
+            } else {
+                // GStreamer initialization failed
+                this_mut.info_bar.connect_response(|_, _| gtk::main_quit());
+
+                let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
+                this_mut.show_message(gtk::MessageType::Error, &msg);
+                eprintln!("{}", msg);
+            }
         }
-
-        let open_btn: gtk::Button = builder.get_object("open-btn").unwrap();
-        let this_rc = Rc::clone(&this);
-        open_btn.connect_clicked(move |_| {
-            this_rc.borrow_mut().select_media();
-        });
 
         this
     }
@@ -242,7 +265,7 @@ impl MainController {
         file_dlg.close();
     }
 
-    pub fn set_context(&mut self, context: Context) {
+    pub fn set_context(&mut self, context: PlaybackContext) {
         self.context = Some(context);
         self.state = ControllerState::Paused;
         self.switch_to_default();
@@ -396,7 +419,7 @@ impl MainController {
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
-        match Context::new(filepath, ctx_tx) {
+        match PlaybackContext::new(filepath, ctx_tx) {
             Ok(context) => {
                 self.context = Some(context);
             }

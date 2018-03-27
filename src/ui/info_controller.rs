@@ -11,7 +11,7 @@ use std::fs::File;
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 
-use media::Context;
+use media::PlaybackContext;
 
 use metadata;
 use metadata::{MediaInfo, Timestamp};
@@ -24,6 +24,7 @@ lazy_static! {
 
 pub struct InfoController {
     info_container: gtk::Grid,
+    show_chapters_btn: gtk::ToggleButton,
 
     drawingarea: gtk::DrawingArea,
 
@@ -36,7 +37,7 @@ pub struct InfoController {
     duration_lbl: gtk::Label,
 
     timeline_scale: gtk::Scale,
-    repeat_button: gtk::ToggleToolButton,
+    repeat_btn: gtk::ToggleToolButton,
     show_chapters_button: gtk::ToggleButton,
 
     chapter_treeview: gtk::TreeView,
@@ -62,6 +63,7 @@ impl InfoController {
         // when the UI controllers will get a mutable version from time to time
         let this_rc = Rc::new(RefCell::new(InfoController {
             info_container: builder.get_object("info-chapter_list-grid").unwrap(),
+            show_chapters_btn: builder.get_object("show_chapters-toggle").unwrap(),
 
             drawingarea: builder.get_object("thumbnail-drawingarea").unwrap(),
 
@@ -74,7 +76,7 @@ impl InfoController {
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
 
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
-            repeat_button: builder.get_object("repeat-toolbutton").unwrap(),
+            repeat_btn: builder.get_object("repeat-toolbutton").unwrap(),
             show_chapters_button: builder.get_object("show_chapters-toggle").unwrap(),
 
             chapter_treeview: chapter_treeview,
@@ -104,6 +106,18 @@ impl InfoController {
         let mut this = this_rc.borrow_mut();
 
         this.main_ctrl = Some(Rc::downgrade(main_ctrl));
+
+        // Show chapters toggle
+        let this_clone = Rc::clone(this_rc);
+        this.show_chapters_button
+            .connect_toggled(move |toggle_button| {
+                if toggle_button.get_active() {
+                    this_clone.borrow().info_container.show();
+                } else {
+                    this_clone.borrow().info_container.hide();
+                }
+            });
+        this.show_chapters_btn.set_sensitive(true);
 
         // Draw thumnail image
         let this_clone = Rc::clone(this_rc);
@@ -148,19 +162,9 @@ impl InfoController {
 
         // repeat button
         let this_clone = Rc::clone(this_rc);
-        this.repeat_button.connect_clicked(move |button| {
+        this.repeat_btn.connect_clicked(move |button| {
             this_clone.borrow_mut().repeat_chapter = button.get_active();
         });
-
-        let this_clone = Rc::clone(this_rc);
-        this.show_chapters_button
-            .connect_toggled(move |toggle_button| {
-                if toggle_button.get_active() {
-                    this_clone.borrow().info_container.show();
-                } else {
-                    this_clone.borrow().info_container.hide();
-                }
-            });
     }
 
     fn draw_thumbnail(
@@ -201,7 +205,7 @@ impl InfoController {
         });
     }
 
-    pub fn new_media(&mut self, context: &Context) {
+    pub fn new_media(&mut self, context: &PlaybackContext) {
         let media_path = context.path.clone();
         let file_stem = media_path
             .file_stem()
@@ -292,6 +296,7 @@ impl InfoController {
 
         self.update_marks();
 
+        self.repeat_btn.set_sensitive(true);
         if let Some(current_iter) = self.chapter_manager.get_selected_iter() {
             // position is in a chapter => select it
             self.chapter_treeview.get_selection().select_iter(&current_iter);

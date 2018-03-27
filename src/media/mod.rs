@@ -1,7 +1,7 @@
 use glib;
 
 pub mod context;
-pub use self::context::Context;
+pub use self::context::PlaybackContext;
 
 pub enum ContextMessage {
     AsyncDone,

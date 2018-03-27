@@ -606,6 +606,7 @@ Author: François Laignel
                   <object class="GtkLabel" id="position-lbl">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="halign">start</property>
                     <property name="label" translatable="yes">00:00.000</property>
                     <property name="wrap">True</property>
                     <property name="selectable">True</property>
@@ -630,6 +631,7 @@ Author: François Laignel
                     <child>
                       <object class="GtkToolButton" id="play_pause-toolbutton">
                         <property name="visible">True</property>
+                        <property name="sensitive">False</property>
                         <property name="can_focus">False</property>
                         <property name="halign">end</property>
                         <property name="valign">end</property>
@@ -645,6 +647,7 @@ Author: François Laignel
                     <child>
                       <object class="GtkToggleToolButton" id="repeat-toolbutton">
                         <property name="visible">True</property>
+                        <property name="sensitive">False</property>
                         <property name="can_focus">False</property>
                         <property name="label" translatable="yes">Repeat Chapter</property>
                         <property name="icon_widget">repeat-image</property>
@@ -727,6 +730,7 @@ Author: François Laignel
         <child>
           <object class="GtkButton" id="open-btn">
             <property name="visible">True</property>
+            <property name="sensitive">False</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <child>
@@ -744,6 +748,7 @@ Author: François Laignel
         <child>
           <object class="GtkToggleButton" id="show_chapters-toggle">
             <property name="visible">True</property>
+            <property name="sensitive">False</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="image">show_chapters-image</property>
