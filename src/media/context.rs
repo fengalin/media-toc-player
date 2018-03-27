@@ -8,8 +8,8 @@ use glib::ObjectExt;
 
 use gtk;
 
+use std::error::Error;
 use std::path::PathBuf;
-
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
@@ -56,7 +56,7 @@ impl Drop for PlaybackContext {
 
 impl PlaybackContext {
     pub fn new(path: PathBuf, ctx_tx: Sender<ContextMessage>) -> Result<PlaybackContext, String> {
-        println!("\n\n* Opening {:?}...", path);
+        info!("{}", gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1));
 
         let file_name = String::from(path.file_name().unwrap().to_str().unwrap());
 
@@ -77,7 +77,7 @@ impl PlaybackContext {
 
         this.info
             .lock()
-            .expect("Context::new failed to lock media info")
+            .unwrap()
             .file_name = file_name;
 
         this.build_pipeline((*VIDEO_SINK).as_ref().unwrap().clone());
@@ -151,22 +151,21 @@ impl PlaybackContext {
 
     pub fn play(&self) -> Result<(), String> {
         if self.pipeline.set_state(gst::State::Playing) == gst::StateChangeReturn::Failure {
-            return Err("Could not set media in palying state".into());
+            return Err(gettext("Could not set media in playing state."));
         }
         Ok(())
     }
 
     pub fn pause(&self) -> Result<(), String> {
         if self.pipeline.set_state(gst::State::Paused) == gst::StateChangeReturn::Failure {
-            return Err("Could not set media in Paused state".into());
+            return Err(gettext("Could not set media in paused state."));
         }
         Ok(())
     }
 
     pub fn stop(&self) {
         if self.pipeline.set_state(gst::State::Null) == gst::StateChangeReturn::Failure {
-            println!("Could not set media in Null state");
-            //return Err("could not set media in Null state".into());
+            warn!("could not set media in Null state");
         }
     }
 
@@ -188,14 +187,11 @@ impl PlaybackContext {
         self.decodebin.send_event(select_streams_evt);
 
         {
-            let mut info = self.info
-                .lock()
-                .expect("MainController::select_streams failed to lock info");
+            let mut info = self.info.lock().unwrap();
             info.streams.select_streams(&stream_ids);
         }
     }
 
-    // TODO: handle errors
     fn build_pipeline(&mut self, video_sink: gst::Element) {
         let file_src = gst::ElementFactory::make("filesrc", None).unwrap();
         file_src
@@ -257,30 +253,21 @@ impl PlaybackContext {
                 gst::MessageView::Eos(..) => {
                     ctx_tx
                         .send(ContextMessage::Eos)
-                        .expect("Failed to notify UI");
+                        .unwrap();
                 }
                 gst::MessageView::Error(err) => {
-                    let error = err.get_error();
-                    eprintln!(
-                        "Error from {}: {} ({:?})",
-                        msg.get_src()
-                            .map(|s| s.get_path_string(),)
-                            .unwrap_or_else(|| String::from("None"),),
-                        error,
-                        err.get_debug()
-                    );
                     ctx_tx
-                        .send(ContextMessage::FailedToOpenMedia(error))
-                        .expect("Failed to notify UI");
+                        .send(ContextMessage::FailedToOpenMedia(
+                            err.get_error().description().to_owned()
+                        ))
+                        .unwrap();
                     return glib::Continue(false);
                 }
                 gst::MessageView::AsyncDone(_) => {
                     if pipeline_state == PipelineState::StreamsSelected {
                         pipeline_state = PipelineState::Initialized;
                         {
-                            let info = &mut info_arc_mtx
-                                .lock()
-                                .expect("Failed to lock media info while setting duration");
+                            let info = &mut info_arc_mtx.lock().unwrap();
                             info.duration = pipeline
                                 .query_duration::<gst::ClockTime>()
                                 .unwrap_or_else(|| 0.into())
@@ -289,18 +276,16 @@ impl PlaybackContext {
                         }
                         ctx_tx
                             .send(ContextMessage::InitDone)
-                            .expect("Failed to notify UI");
+                            .unwrap();
                     } else if pipeline_state == PipelineState::Initialized {
                         ctx_tx
                             .send(ContextMessage::AsyncDone)
-                            .expect("Failed to notify UI");
+                            .unwrap();
                     }
                 }
                 gst::MessageView::Tag(msg_tag) => {
                     if pipeline_state != PipelineState::Initialized {
-                        let info = &mut info_arc_mtx
-                            .lock()
-                            .expect("Failed to lock media info while reading tags");
+                        let info = &mut info_arc_mtx.lock().unwrap();
                         info.tags = info.tags
                             .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
                     }
@@ -310,12 +295,10 @@ impl PlaybackContext {
                         // FIXME: use updated
                         let (toc, _updated) = msg_toc.get_toc();
                         if toc.get_scope() == gst::TocScope::Global {
-                            let info = &mut info_arc_mtx
-                                .lock()
-                                .expect("Failed to lock media info while receiving toc");
+                            let info = &mut info_arc_mtx.lock().unwrap();
                             info.toc = Some(toc);
                         } else {
-                            println!("Warning: Skipping toc with scope: {:?}", toc.get_scope());
+                            warn!("skipping toc with scope: {:?}", toc.get_scope());
                         }
                     }
                 }
@@ -328,16 +311,14 @@ impl PlaybackContext {
                     if pipeline_state == PipelineState::Initialized {
                         ctx_tx
                             .send(ContextMessage::StreamsSelected)
-                            .expect("Failed to notify UI");
+                            .unwrap();
                     } else {
                         pipeline_state = PipelineState::StreamsSelected;
                     }
                 }
                 gst::MessageView::StreamCollection(msg_stream_collection) => {
                     let stream_collection = msg_stream_collection.get_stream_collection();
-                    let info = &mut info_arc_mtx
-                        .lock()
-                        .expect("Failed to lock media info while initializing audio stream");
+                    let info = &mut info_arc_mtx.lock().unwrap();
                     stream_collection
                         .iter()
                         .for_each(|stream| info.streams.add_stream(&stream));

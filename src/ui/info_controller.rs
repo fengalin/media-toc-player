@@ -198,8 +198,7 @@ impl InfoController {
     fn show_error(&self, message: String) {
         let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak.upgrade()
-                .expect("InfoController::show_error can't upgrade main_ctrl");
+            let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
             main_ctrl_rc.borrow().show_message(gtk::MessageType::Error, &message);
             glib::Continue(false)
         });
@@ -209,9 +208,9 @@ impl InfoController {
         let media_path = context.path.clone();
         let file_stem = media_path
             .file_stem()
-            .expect("InfoController::new_media clicked, failed to get file_stem")
+            .unwrap()
             .to_str()
-            .expect("InfoController::new_media clicked, failed to get file_stem as str");
+            .unwrap();
 
         // check the presence of toc files
         let toc_extensions = metadata::Factory::get_extensions();
@@ -230,10 +229,7 @@ impl InfoController {
             });
 
         {
-            let info = context
-                .info
-                .lock()
-                .expect("InfoController::new_media failed to lock media info");
+            let info = context.info.lock().unwrap();
 
             self.duration = info.duration;
             self.timeline_scale.set_range(0f64, info.duration as f64);
@@ -338,9 +334,7 @@ impl InfoController {
     fn repeat_at(main_ctrl: &Option<Weak<RefCell<MainController>>>, position: u64) {
         let main_ctrl_weak = Weak::clone(main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak
-                .upgrade()
-                .expect("InfoController::tick can't upgrade main_ctrl while repeating chapter");
+            let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
             main_ctrl_rc.borrow_mut().seek(position, true); // accurate (slow)
             glib::Continue(false)
         });

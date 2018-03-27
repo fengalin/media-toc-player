@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-27 19:18+0200\n"
-"PO-Revision-Date: 2018-03-27 19:20+0200\n"
+"POT-Creation-Date: 2018-03-27 19:51+0200\n"
+"PO-Revision-Date: 2018-03-27 19:52+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -19,29 +19,33 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Gtranslator 2.91.7\n"
 
-#: src/main.rs:44
+#: src/main.rs:47
 msgid "A media player with a table of contents"
 msgstr "Un lecteur multimédia muni d'une table des matières"
 
-#: src/main.rs:45
+#: src/main.rs:48
 msgid "Display this message"
 msgstr "Affiche ce message"
 
-#: src/main.rs:46
+#: src/main.rs:49
 msgid "Print version information"
 msgstr "Affiche la version"
 
-#: src/main.rs:48
+#: src/main.rs:51
 msgid "MEDIA"
 msgstr "MÉDIA"
 
-#: src/main.rs:57
+#: src/main.rs:60
 msgid "Path to the input media file"
 msgstr "Chemin du fichier multimédia"
 
-#: src/main.rs:62
+#: src/main.rs:65
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'intialiser GTK"
+
+#: src/media/context.rs:59
+msgid "Opening {}..."
+msgstr "Ouverture de {}…"
 
 #: src/media/context.rs:94
 msgid ""
@@ -63,9 +67,37 @@ msgstr "L'affichage vidéo sera désactivé."
 msgid "Please install {} or {}, depending on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
-#: src/metadata/mkvmerge_text_format.rs:68
-msgid "Error reading mkvmerge text file."
-msgstr "Erreur à la lecture du fichier texte mkvmerge"
+#: src/media/context.rs:154
+msgid "Could not set media in playing state."
+msgstr "Impossible de passer le média en mode lecture."
+
+#: src/media/context.rs:161
+msgid "Could not set media in paused state."
+msgstr "Impossible de passer le média en mode pause."
+
+#: src/metadata/mkvmerge_text_format.rs:63
+msgid "Failed to read mkvmerge text file."
+msgstr "Échec à la lecture du fichier texte mkvmerge"
+
+#: src/metadata/mkvmerge_text_format.rs:87
+msgid "couldn't find chapter nb for: {}"
+msgstr "impossible de trouver le n° de chapitre : {}"
+
+#: src/metadata/mkvmerge_text_format.rs:102
+msgid "unexpected timestamp: {}"
+msgstr "marqueur temporel non reconnu : {}"
+
+#: src/metadata/mkvmerge_text_format.rs:124
+msgid "unexpected format for: {}"
+msgstr "format non reconnu pour : {}"
+
+#: src/metadata/mkvmerge_text_format.rs:128
+msgid "expected '=' in: {}"
+msgstr "'=' attendu dans : {}"
+
+#: src/metadata/mkvmerge_text_format.rs:135
+msgid "couldn't update last start position"
+msgstr "impossible de mettre à jour la dernière position de départ"
 
 #: src/ui/chapter_tree_manager.rs:65
 msgid "Title"
@@ -79,27 +111,27 @@ msgstr "Début"
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/info_controller.rs:284
+#: src/ui/info_controller.rs:280
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:95
+#: src/ui/main_controller.rs:91
 msgid "media-toc player"
 msgstr "lecteur media-toc"
 
-#: src/ui/main_controller.rs:134
+#: src/ui/main_controller.rs:130
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:246
+#: src/ui/main_controller.rs:236
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:251
+#: src/ui/main_controller.rs:241
 msgid "Open"
 msgstr "Ouvrir"
 
-#: src/ui/main_controller.rs:347 src/ui/main_controller.rs:428
+#: src/ui/main_controller.rs:334 src/ui/main_controller.rs:403
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 

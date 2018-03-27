@@ -1,12 +1,3 @@
-use std::error::Error;
-
-use std::rc::Rc;
-use std::cell::RefCell;
-
-use std::path::PathBuf;
-
-use std::sync::mpsc::{channel, Receiver};
-
 use gettextrs::gettext;
 use glib;
 use gstreamer as gst;
@@ -14,6 +5,11 @@ use gtk;
 use gtk::prelude::*;
 
 use gdk::{Cursor, CursorType, WindowExt};
+
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::path::PathBuf;
+use std::sync::mpsc::{channel, Receiver};
 
 use media::{PlaybackContext, ContextMessage};
 use media::ContextMessage::*;
@@ -105,7 +101,7 @@ impl MainController {
                 let mut req_err = PlaybackContext::check_requirements().err();
                 if req_err.is_some() {
                     let err = req_err.take().unwrap();
-                    eprintln!("{}", err);
+                    error!("{}", err);
                     let this_rc = Rc::clone(&this);
                     gtk::idle_add(move || {
                         this_rc.borrow().show_message(gtk::MessageType::Warning, &err);
@@ -133,7 +129,7 @@ impl MainController {
 
                 let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
                 this_mut.show_message(gtk::MessageType::Error, &msg);
-                eprintln!("{}", msg);
+                error!("{}", msg);
             }
         }
 
@@ -178,7 +174,7 @@ impl MainController {
                     self.context = Some(context);
                 }
                 state => {
-                    println!("Can't play/pause in state {:?}", state);
+                    warn!("Can't play/pause in state {:?}", state);
                     self.context = Some(context);
                 }
             };
@@ -197,10 +193,7 @@ impl MainController {
                 self.info_ctrl.borrow_mut().seek(position, &self.state);
             }
 
-            self.context
-                .as_ref()
-                .expect("MainController::seek no context")
-                .seek(position, accurate);
+            self.context.as_ref().unwrap().seek(position, accurate);
 
             if self.state == ControllerState::EOS {
                 self.register_tracker();
@@ -211,10 +204,7 @@ impl MainController {
     }
 
     pub fn select_streams(&mut self, stream_ids: &[String]) {
-        self.context
-            .as_ref()
-            .expect("MainController::select_streams no context")
-            .select_streams(stream_ids);
+        self.context.as_ref().unwrap().select_streams(stream_ids);
     }
 
     fn switch_to_busy(&mut self) {
@@ -297,10 +287,7 @@ impl MainController {
                     InitDone => {
                         let mut this = this_rc.borrow_mut();
 
-                        let context = this.context
-                            .take()
-                            .expect("MainController: InitDone but no context available");
-
+                        let context = this.context.take().unwrap();
                         this.header_bar
                             .set_subtitle(Some(context.file_name.as_str()));
                         this.perspective_ctrl.borrow().new_media();
@@ -315,11 +302,7 @@ impl MainController {
                     }
                     Eos => {
                         let mut this = this_rc.borrow_mut();
-                        let position = this.context
-                            .as_mut()
-                            .expect("MainController::listener no context while getting position")
-                            .get_position();
-
+                        let position = this.context.as_mut().unwrap().get_position();
                         this.info_ctrl.borrow_mut().tick(position, true);
 
                         this.play_pause_btn.set_icon_name(PLAYBACK_ICON);
@@ -330,24 +313,14 @@ impl MainController {
                     }
                     StreamsSelected => {
                         let mut this = this_rc.borrow_mut();
-                        let mut context = this.context
-                            .take()
-                            .expect("MainController(StreamsSelected) no context available");
+                        let mut context = this.context.take().unwrap();
                         {
-                            let info = context
-                                .info
-                                .lock()
-                                .expect("MainController(StreamsSelected) failed to lock info");
-
+                            let info = context.info.lock().unwrap();
                             this.info_ctrl.borrow().streams_changed(&info);
                         }
                         this.set_context(context);
                     }
                     FailedToOpenMedia(error) => {
-                        let error = gettext("Error opening file. {}")
-                            .replace("{}", error.description());
-                        eprintln!("{}", error);
-
                         let mut this = this_rc.borrow_mut();
                         this.context = None;
                         this.state = ControllerState::Stopped;
@@ -357,6 +330,11 @@ impl MainController {
 
                         this.keep_going = false;
                         keep_going = false;
+
+                        let error = gettext("Error opening file. {}")
+                            .replacen("{}", &error, 1);
+                        this.show_message(gtk::MessageType::Error, &error);
+                        error!("{}", error);
                     }
                 };
 
@@ -392,10 +370,7 @@ impl MainController {
             let mut this = this_rc.borrow_mut();
 
             if !this.seeking {
-                let position = this.context
-                    .as_mut()
-                    .expect("MainController::tracker no context while getting position")
-                    .get_position();
+                let position = this.context.as_mut().unwrap().get_position();
                 this.info_ctrl.borrow_mut().tick(position, false);
             }
 
@@ -427,8 +402,8 @@ impl MainController {
                 self.switch_to_default();
                 let error = gettext("Error opening file. {}")
                     .replace("{}", &error);
-                eprintln!("{}", error);
                 self.show_message(gtk::MessageType::Error, &error);
+                error!("{}", error);
            }
         };
     }
