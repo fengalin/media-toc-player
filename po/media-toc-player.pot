@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-27 19:51+0200\n"
+"POT-Creation-Date: 2018-03-29 21:50+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -71,6 +71,10 @@ msgstr ""
 msgid "Could not set media in paused state."
 msgstr ""
 
+#: src/metadata/media_info.rs:5
+msgid "untitled"
+msgstr ""
+
 #: src/metadata/mkvmerge_text_format.rs:63
 msgid "Failed to read mkvmerge text file."
 msgstr ""
@@ -95,15 +99,15 @@ msgstr ""
 msgid "couldn't update last start position"
 msgstr ""
 
-#: src/ui/chapter_tree_manager.rs:65
+#: src/ui/chapter_tree_manager.rs:61
 msgid "Title"
 msgstr ""
 
-#: src/ui/chapter_tree_manager.rs:66
+#: src/ui/chapter_tree_manager.rs:62
 msgid "Start"
 msgstr ""
 
-#: src/ui/chapter_tree_manager.rs:67
+#: src/ui/chapter_tree_manager.rs:63
 msgid "End"
 msgstr ""
 
@@ -197,6 +201,10 @@ msgstr ""
 
 #: src/ui/media-toc-player.ui:849
 msgid "Streams"
+msgstr ""
+
+#: src/ui/streams_controller.rs:243
+msgid "unknown"
 msgstr ""
 
 #: src/ui/streams_controller.rs:286

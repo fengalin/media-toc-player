@@ -5,7 +5,7 @@ pub mod format;
 pub use self::format::Reader;
 
 pub mod media_info;
-pub use self::media_info::{MediaInfo, Stream, Streams};
+pub use self::media_info::{get_default_chapter_title, MediaInfo, Stream, Streams};
 
 pub mod mkvmerge_text_format;
 pub use self::mkvmerge_text_format::MKVMergeTextFormat;

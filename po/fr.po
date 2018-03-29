@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-27 19:51+0200\n"
-"PO-Revision-Date: 2018-03-27 19:52+0200\n"
+"POT-Creation-Date: 2018-03-29 21:50+0200\n"
+"PO-Revision-Date: 2018-03-29 21:51+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -75,6 +75,10 @@ msgstr "Impossible de passer le média en mode lecture."
 msgid "Could not set media in paused state."
 msgstr "Impossible de passer le média en mode pause."
 
+#: src/metadata/media_info.rs:5
+msgid "untitled"
+msgstr "sans titre"
+
 #: src/metadata/mkvmerge_text_format.rs:63
 msgid "Failed to read mkvmerge text file."
 msgstr "Échec à la lecture du fichier texte mkvmerge"
@@ -99,15 +103,15 @@ msgstr "'=' attendu dans : {}"
 msgid "couldn't update last start position"
 msgstr "impossible de mettre à jour la dernière position de départ"
 
-#: src/ui/chapter_tree_manager.rs:65
+#: src/ui/chapter_tree_manager.rs:61
 msgid "Title"
 msgstr "Titre"
 
-#: src/ui/chapter_tree_manager.rs:66
+#: src/ui/chapter_tree_manager.rs:62
 msgid "Start"
 msgstr "Début"
 
-#: src/ui/chapter_tree_manager.rs:67
+#: src/ui/chapter_tree_manager.rs:63
 msgid "End"
 msgstr "Fin"
 
@@ -202,6 +206,10 @@ msgstr "Affichage"
 #: src/ui/media-toc-player.ui:849
 msgid "Streams"
 msgstr "Flux"
+
+#: src/ui/streams_controller.rs:243
+msgid "unknown"
+msgstr "inconnu"
 
 #: src/ui/streams_controller.rs:286
 msgid "Stream id"

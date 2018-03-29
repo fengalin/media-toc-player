@@ -4,17 +4,13 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use metadata::{Timestamp, TocVisit, TocVisitor};
+use metadata::{get_default_chapter_title, Timestamp, TocVisit, TocVisitor};
 
 const START_COL: u32 = 0;
 const END_COL: u32 = 1;
 const TITLE_COL: u32 = 2;
 const START_STR_COL: u32 = 3;
 const END_STR_COL: u32 = 4;
-
-lazy_static! {
-    static ref DEFAULT_TITLE: String = "untitled".to_owned();
-}
 
 pub struct ChapterEntry<'a> {
     store: &'a gtk::TreeStore,
@@ -146,11 +142,11 @@ impl ChapterTreeManager {
                             let start = start as u64;
                             let end = end as u64;
 
-                            let title = chapter.get_tags().map_or(None, |tags| {
+                            let title = chapter.get_tags().and_then(|tags| {
                                 tags.get::<gst::tags::Title>().map(|tag| {
                                     tag.get().unwrap().to_owned()
                                 })
-                            }).unwrap_or(DEFAULT_TITLE.to_owned());
+                            }).unwrap_or_else(|| get_default_chapter_title());
                             self.store.insert_with_values(
                                 None,
                                 None,
