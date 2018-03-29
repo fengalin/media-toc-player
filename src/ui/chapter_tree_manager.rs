@@ -142,11 +142,13 @@ impl ChapterTreeManager {
                             let start = start as u64;
                             let end = end as u64;
 
-                            let title = chapter.get_tags().and_then(|tags| {
-                                tags.get::<gst::tags::Title>().map(|tag| {
-                                    tag.get().unwrap().to_owned()
+                            let title = chapter
+                                .get_tags()
+                                .and_then(|tags| {
+                                    tags.get::<gst::tags::Title>()
+                                        .map(|tag| tag.get().unwrap().to_owned())
                                 })
-                            }).unwrap_or_else(|| get_default_chapter_title());
+                                .unwrap_or_else(|| get_default_chapter_title());
                             self.store.insert_with_values(
                                 None,
                                 None,

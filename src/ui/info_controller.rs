@@ -199,18 +199,16 @@ impl InfoController {
         let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
             let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
-            main_ctrl_rc.borrow().show_message(gtk::MessageType::Error, &message);
+            main_ctrl_rc
+                .borrow()
+                .show_message(gtk::MessageType::Error, &message);
             glib::Continue(false)
         });
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
         let media_path = context.path.clone();
-        let file_stem = media_path
-            .file_stem()
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let file_stem = media_path.file_stem().unwrap().to_str().unwrap();
 
         // check the presence of toc files
         let toc_extensions = metadata::Factory::get_extensions();
@@ -267,7 +265,7 @@ impl InfoController {
 
             let extern_toc = toc_candidates.next().map_or(None, |(toc_path, format)| {
                 match File::open(toc_path) {
-                    Ok(mut toc_file) =>  {
+                    Ok(mut toc_file) => {
                         match metadata::Factory::get_reader(&format).read(&info, &mut toc_file) {
                             Ok(toc) => Some(toc),
                             Err(err) => {
@@ -295,7 +293,9 @@ impl InfoController {
         self.repeat_btn.set_sensitive(true);
         if let Some(current_iter) = self.chapter_manager.get_selected_iter() {
             // position is in a chapter => select it
-            self.chapter_treeview.get_selection().select_iter(&current_iter);
+            self.chapter_treeview
+                .get_selection()
+                .select_iter(&current_iter);
         }
     }
 

@@ -56,7 +56,10 @@ impl Drop for PlaybackContext {
 
 impl PlaybackContext {
     pub fn new(path: PathBuf, ctx_tx: Sender<ContextMessage>) -> Result<PlaybackContext, String> {
-        info!("{}", gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1));
+        info!(
+            "{}",
+            gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1)
+        );
 
         let file_name = String::from(path.file_name().unwrap().to_str().unwrap());
 
@@ -75,10 +78,7 @@ impl PlaybackContext {
 
         this.pipeline.add(&this.decodebin).unwrap();
 
-        this.info
-            .lock()
-            .unwrap()
-            .file_name = file_name;
+        this.info.lock().unwrap().file_name = file_name;
 
         this.build_pipeline((*VIDEO_SINK).as_ref().unwrap().clone());
         this.register_bus_inspector(ctx_tx);
@@ -90,26 +90,27 @@ impl PlaybackContext {
     }
 
     pub fn check_requirements() -> Result<(), String> {
-        gst::ElementFactory::make("decodebin3", None).map_or(
-            Err(gettext("Missing `decodebin3`\ncheck your gst-plugins-base install")),
-            |_| Ok(())
-        )
+        gst::ElementFactory::make("decodebin3", None)
+            .map_or(
+                Err(gettext(
+                    "Missing `decodebin3`\ncheck your gst-plugins-base install",
+                )),
+                |_| Ok(()),
+            )
             .and_then(|_| {
                 gst::ElementFactory::make("gtksink", None).map_or_else(
                     || {
                         let (major, minor, micro, _nano) = gst::version();
                         let (variant1, variant2) = if major >= 1 && minor >= 13 && micro >= 1 {
-                            (
-                                "gstreamer1-plugins-base",
-                                "gstreamer1.0-plugins-base",
-                            )
+                            ("gstreamer1-plugins-base", "gstreamer1.0-plugins-base")
                         } else {
                             (
                                 "gstreamer1-plugins-bad-free-gtk",
                                 "gstreamer1.0-plugins-bad",
                             )
                         };
-                        Err(format!("{} {}\n{}",
+                        Err(format!(
+                            "{} {}\n{}",
                             gettext("Couldn't find GStreamer GTK video sink."),
                             gettext("Video playback will be disabled."),
                             gettext("Please install {} or {}, depending on your distribution.")
@@ -117,15 +118,18 @@ impl PlaybackContext {
                                 .replacen("{}", variant2, 1),
                         ))
                     },
-                    |_| Ok(())
+                    |_| Ok(()),
                 )
             })
     }
 
     pub fn get_video_widget() -> Option<gtk::Widget> {
-        let widget_val = (*VIDEO_SINK).as_ref().unwrap().get_property("widget").unwrap();
-        widget_val
-            .get::<gtk::Widget>()
+        let widget_val = (*VIDEO_SINK)
+            .as_ref()
+            .unwrap()
+            .get_property("widget")
+            .unwrap();
+        widget_val.get::<gtk::Widget>()
     }
 
     pub fn get_position(&mut self) -> u64 {
@@ -251,14 +255,12 @@ impl PlaybackContext {
         self.pipeline.get_bus().unwrap().add_watch(move |_, msg| {
             match msg.view() {
                 gst::MessageView::Eos(..) => {
-                    ctx_tx
-                        .send(ContextMessage::Eos)
-                        .unwrap();
+                    ctx_tx.send(ContextMessage::Eos).unwrap();
                 }
                 gst::MessageView::Error(err) => {
                     ctx_tx
                         .send(ContextMessage::FailedToOpenMedia(
-                            err.get_error().description().to_owned()
+                            err.get_error().description().to_owned(),
                         ))
                         .unwrap();
                     return glib::Continue(false);
@@ -274,13 +276,9 @@ impl PlaybackContext {
                                 .nanoseconds()
                                 .unwrap();
                         }
-                        ctx_tx
-                            .send(ContextMessage::InitDone)
-                            .unwrap();
+                        ctx_tx.send(ContextMessage::InitDone).unwrap();
                     } else if pipeline_state == PipelineState::Initialized {
-                        ctx_tx
-                            .send(ContextMessage::AsyncDone)
-                            .unwrap();
+                        ctx_tx.send(ContextMessage::AsyncDone).unwrap();
                     }
                 }
                 gst::MessageView::Tag(msg_tag) => {
@@ -309,9 +307,7 @@ impl PlaybackContext {
                 }
                 gst::MessageView::StreamsSelected(_) => {
                     if pipeline_state == PipelineState::Initialized {
-                        ctx_tx
-                            .send(ContextMessage::StreamsSelected)
-                            .unwrap();
+                        ctx_tx.send(ContextMessage::StreamsSelected).unwrap();
                     } else {
                         pipeline_state = PipelineState::StreamsSelected;
                     }

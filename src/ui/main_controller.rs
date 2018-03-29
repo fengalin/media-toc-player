@@ -11,7 +11,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
 
-use media::{PlaybackContext, ContextMessage};
+use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
 use super::{InfoController, PerspectiveController, StreamsController, VideoController};
@@ -88,10 +88,14 @@ impl MainController {
                 gtk::main_quit();
                 Inhibit(false)
             });
-            this_mut.header_bar.set_title(gettext("media-toc player").as_str());
+            this_mut
+                .header_bar
+                .set_title(gettext("media-toc player").as_str());
 
             if is_gst_ok {
-                this_mut.info_bar.connect_response(|info_bar, _| info_bar.hide());
+                this_mut
+                    .info_bar
+                    .connect_response(|info_bar, _| info_bar.hide());
 
                 this_mut.video_ctrl.register_callbacks(&this);
                 PerspectiveController::register_callbacks(&this_mut.perspective_ctrl, &this);
@@ -104,7 +108,9 @@ impl MainController {
                     error!("{}", err);
                     let this_rc = Rc::clone(&this);
                     gtk::idle_add(move || {
-                        this_rc.borrow().show_message(gtk::MessageType::Warning, &err);
+                        this_rc
+                            .borrow()
+                            .show_message(gtk::MessageType::Warning, &err);
                         glib::Continue(false)
                     });
                 }
@@ -121,8 +127,8 @@ impl MainController {
                 });
                 this_mut.play_pause_btn.set_sensitive(true);
 
-                // TODO: add key bindings to seek by steps
-                // play/pause, etc.
+            // TODO: add key bindings to seek by steps
+            // play/pause, etc.
             } else {
                 // GStreamer initialization failed
                 this_mut.info_bar.connect_response(|_, _| gtk::main_quit());
@@ -331,8 +337,7 @@ impl MainController {
                         this.keep_going = false;
                         keep_going = false;
 
-                        let error = gettext("Error opening file. {}")
-                            .replacen("{}", &error, 1);
+                        let error = gettext("Error opening file. {}").replacen("{}", &error, 1);
                         this.show_message(gtk::MessageType::Error, &error);
                         error!("{}", error);
                     }
@@ -400,11 +405,10 @@ impl MainController {
             }
             Err(error) => {
                 self.switch_to_default();
-                let error = gettext("Error opening file. {}")
-                    .replace("{}", &error);
+                let error = gettext("Error opening file. {}").replace("{}", &error);
                 self.show_message(gtk::MessageType::Error, &error);
                 error!("{}", error);
-           }
+            }
         };
     }
 }

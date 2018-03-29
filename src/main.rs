@@ -14,9 +14,9 @@ extern crate log;
 #[macro_use]
 extern crate lazy_static;
 
-use clap::{Arg, App};
+use clap::{App, Arg};
 
-use gettextrs::{TextDomain, TextDomainError, gettext};
+use gettextrs::{gettext, TextDomain, TextDomainError};
 
 use gtk::Builder;
 
@@ -30,15 +30,11 @@ fn main() {
     env_logger::init();
 
     match TextDomain::new("media-toc-player").prepend("target").init() {
-        Ok(locale) => {
-            info!("Translation found, `setlocale` returned {:?}", locale)
-        }
+        Ok(locale) => info!("Translation found, `setlocale` returned {:?}", locale),
         Err(TextDomainError::TranslationNotFound(lang)) => {
             warn!("Translation not found for language {}", lang)
         }
-        Err(TextDomainError::InvalidLocale(locale)) => {
-            error!("Invalid locale {}", locale)
-        }
+        Err(TextDomainError::InvalidLocale(locale)) => error!("Invalid locale {}", locale),
     }
 
     // Messages are not translated unless gtk (glib) is initialized
@@ -56,9 +52,11 @@ fn main() {
         .about(about_msg.as_str())
         .help_message(help_msg.as_str())
         .version_message(version_msg.as_str())
-        .arg(Arg::with_name(input_arg.as_str())
-            .help(&gettext("Path to the input media file"))
-            .last(false))
+        .arg(
+            Arg::with_name(input_arg.as_str())
+                .help(&gettext("Path to the input media file"))
+                .last(false),
+        )
         .get_matches();
 
     if !is_gtk_ok {
@@ -78,9 +76,7 @@ fn main() {
 
     if is_gst_ok {
         if let Some(input_file) = matches.value_of(input_arg.as_str()) {
-            main_ctrl
-                .borrow_mut()
-                .open_media(input_file.into());
+            main_ctrl.borrow_mut().open_media(input_file.into());
         }
     }
 
