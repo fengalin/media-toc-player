@@ -47,7 +47,7 @@ fn main() {
     let input_arg = gettext("MEDIA");
 
     let matches = App::new("media-toc-player")
-        .version("0.0.1")
+        .version("0.1.0")
         .author("François Laignel <fengalin@free.fr>")
         .about(about_msg.as_str())
         .help_message(help_msg.as_str())
