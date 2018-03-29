@@ -79,11 +79,11 @@ impl InfoController {
             repeat_btn: builder.get_object("repeat-toolbutton").unwrap(),
             show_chapters_button: builder.get_object("show_chapters-toggle").unwrap(),
 
-            chapter_treeview: chapter_treeview,
+            chapter_treeview,
 
             thumbnail: None,
 
-            chapter_manager: chapter_manager,
+            chapter_manager,
 
             duration: 0,
             repeat_chapter: false,
@@ -263,7 +263,7 @@ impl InfoController {
 
             self.streams_changed(&info);
 
-            let extern_toc = toc_candidates.next().map_or(None, |(toc_path, format)| {
+            let extern_toc = toc_candidates.next().and_then(|(toc_path, format)| {
                 match File::open(toc_path) {
                     Ok(mut toc_file) => {
                         match metadata::Factory::get_reader(&format).read(&info, &mut toc_file) {

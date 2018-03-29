@@ -71,7 +71,7 @@ impl PlaybackContext {
 
             file_name: file_name.clone(),
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
-            path: path,
+            path,
 
             info: Arc::new(Mutex::new(MediaInfo::new())),
         };

@@ -20,8 +20,8 @@ pub struct ChapterEntry<'a> {
 impl<'a> ChapterEntry<'a> {
     pub fn new(store: &'a gtk::TreeStore, iter: &'a gtk::TreeIter) -> ChapterEntry<'a> {
         ChapterEntry {
-            store: store,
-            iter: iter,
+            store,
+            iter,
         }
     }
 
@@ -50,7 +50,7 @@ pub struct ChapterTreeManager {
 impl ChapterTreeManager {
     pub fn new_from(store: gtk::TreeStore) -> Self {
         ChapterTreeManager {
-            store: store,
+            store,
             iter: None,
             selected_iter: None,
         }
@@ -126,7 +126,7 @@ impl ChapterTreeManager {
     pub fn replace_with(&mut self, toc: &Option<gst::Toc>) {
         self.clear();
 
-        if let &Some(ref toc) = toc {
+        if let Some(ref toc) = *toc {
             let mut toc_visitor = TocVisitor::new(toc);
             if !toc_visitor.enter_chapters() {
                 return;
@@ -134,36 +134,33 @@ impl ChapterTreeManager {
 
             // FIXME: handle hierarchical Tocs
             while let Some(toc_visit) = toc_visitor.next() {
-                match toc_visit {
-                    TocVisit::Node(chapter) => {
-                        assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
+                if let TocVisit::Node(chapter) = toc_visit {
+                    assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
 
-                        if let Some((start, end)) = chapter.get_start_stop_times() {
-                            let start = start as u64;
-                            let end = end as u64;
+                    if let Some((start, end)) = chapter.get_start_stop_times() {
+                        let start = start as u64;
+                        let end = end as u64;
 
-                            let title = chapter
-                                .get_tags()
-                                .and_then(|tags| {
-                                    tags.get::<gst::tags::Title>()
-                                        .map(|tag| tag.get().unwrap().to_owned())
-                                })
-                                .unwrap_or_else(|| get_default_chapter_title());
-                            self.store.insert_with_values(
-                                None,
-                                None,
-                                &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
-                                &[
-                                    &start,
-                                    &end,
-                                    &title,
-                                    &format!("{}", &Timestamp::format(start, false)),
-                                    &format!("{}", &Timestamp::format(end, false)),
-                                ],
-                            );
-                        }
+                        let title = chapter
+                            .get_tags()
+                            .and_then(|tags| {
+                                tags.get::<gst::tags::Title>()
+                                    .map(|tag| tag.get().unwrap().to_owned())
+                            })
+                            .unwrap_or_else(get_default_chapter_title);
+                        self.store.insert_with_values(
+                            None,
+                            None,
+                            &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
+                            &[
+                                &start,
+                                &end,
+                                &title,
+                                &format!("{}", &Timestamp::format(start, false)),
+                                &format!("{}", &Timestamp::format(end, false)),
+                            ],
+                        );
                     }
-                    _ => (),
                 }
             }
         }

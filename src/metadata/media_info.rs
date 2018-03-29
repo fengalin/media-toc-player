@@ -77,10 +77,10 @@ impl Stream {
 
         Stream {
             id: stream.get_stream_id().unwrap(),
-            codec_printable: codec_printable,
-            caps: caps,
-            tags: tags,
-            type_: type_,
+            codec_printable,
+            caps,
+            tags,
+            type_,
         }
     }
 }
