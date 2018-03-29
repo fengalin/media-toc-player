@@ -14,15 +14,15 @@ name = "media_toc_player"
 path = "src/main.rs"
 
 [dependencies]
-cairo-rs = "0.4"
-clap = "2.31"
-env_logger = "0.5"
-gdk = "0.8"
-glib = "0.5"
-gstreamer = { version = "0.11", features = ["v1_10"] }
-gtk = { version = "0.4", features = ["v3_18"] }
-image = "0.18"
-lazy_static = "1.0"
-log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
+cairo-rs = "^0.4.1"
+clap = "^2.31.2"
+env_logger = "^0.5.6"
+gdk = "^0.8.0"
+glib = "^0.5.0"
+gstreamer = { version = "^0.11.0", features = ["v1_10"] }
+gtk = { version = "^0.4.0", features = ["v3_18"] }
+image = "^0.18.0"
+lazy_static = "^1.0.0"
+log = { version = "^0.4.1", features = ["max_level_debug", "release_max_level_warn"] }
 
 gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-system"] }
