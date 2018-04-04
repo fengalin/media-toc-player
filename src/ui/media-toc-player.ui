@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Generated with glade 3.20.4 
+<!-- Generated with glade 3.22.0 
 
 The MIT License (MIT)
 
@@ -68,6 +68,7 @@ Author: François Laignel
   <object class="GtkImage" id="repeat-image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
+    <property name="tooltip_text" translatable="yes" comments="Button tooltip">Repeat current chapter</property>
     <property name="icon_name">media-playlist-repeat-symbolic</property>
   </object>
   <object class="GtkImage" id="show_chapters-image">
@@ -633,10 +634,10 @@ Author: François Laignel
                         <property name="visible">True</property>
                         <property name="sensitive">False</property>
                         <property name="can_focus">False</property>
+                        <property name="tooltip_text" translatable="yes" comments="Button tooltip">Play / Pause</property>
                         <property name="halign">end</property>
                         <property name="valign">end</property>
                         <property name="visible_vertical">False</property>
-                        <property name="label" translatable="yes">Play / Pause</property>
                         <property name="icon_name">media-playback-start-symbolic</property>
                       </object>
                       <packing>
@@ -649,7 +650,6 @@ Author: François Laignel
                         <property name="visible">True</property>
                         <property name="sensitive">False</property>
                         <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">Repeat Chapter</property>
                         <property name="icon_widget">repeat-image</property>
                       </object>
                       <packing>
@@ -693,6 +693,7 @@ Author: François Laignel
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
+            <property name="tooltip_text" translatable="yes" comments="Button tooltip">Perspective selector</property>
             <property name="popover">perspective-popovermenu</property>
             <child>
               <object class="GtkBox" id="perspective-menu-btn-image-box">
@@ -733,6 +734,7 @@ Author: François Laignel
             <property name="sensitive">False</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
+            <property name="tooltip_text" translatable="yes" comments="Button tooltip">Open media</property>
             <child>
               <object class="GtkImage">
                 <property name="visible">True</property>
@@ -751,6 +753,7 @@ Author: François Laignel
             <property name="sensitive">False</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
+            <property name="tooltip_text" translatable="yes" comments="Button tooltip">Show / Hide chapters list</property>
             <property name="image">show_chapters-image</property>
             <property name="always_show_image">True</property>
             <property name="active">True</property>

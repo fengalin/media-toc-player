@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-03-29 21:50+0200\n"
-"PO-Revision-Date: 2018-03-29 21:51+0200\n"
+"POT-Creation-Date: 2018-04-04 18:05+0200\n"
+"PO-Revision-Date: 2018-04-04 18:06+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -19,35 +19,35 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Gtranslator 2.91.7\n"
 
-#: src/main.rs:47
+#: src/main.rs:43
 msgid "A media player with a table of contents"
 msgstr "Un lecteur multimédia muni d'une table des matières"
 
-#: src/main.rs:48
+#: src/main.rs:44
 msgid "Display this message"
 msgstr "Affiche ce message"
 
-#: src/main.rs:49
+#: src/main.rs:45
 msgid "Print version information"
 msgstr "Affiche la version"
 
-#: src/main.rs:51
+#: src/main.rs:47
 msgid "MEDIA"
 msgstr "MÉDIA"
 
-#: src/main.rs:60
+#: src/main.rs:57
 msgid "Path to the input media file"
 msgstr "Chemin du fichier multimédia"
 
-#: src/main.rs:65
+#: src/main.rs:63
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'intialiser GTK"
 
-#: src/media/context.rs:59
+#: src/media/context.rs:61
 msgid "Opening {}..."
 msgstr "Ouverture de {}…"
 
-#: src/media/context.rs:94
+#: src/media/context.rs:96
 msgid ""
 "Missing `decodebin3`\n"
 "check your gst-plugins-base install"
@@ -55,23 +55,23 @@ msgstr ""
 "`decodebin3` manquant\n"
 "Vérifiez l'installation de gst-plugin-base"
 
-#: src/media/context.rs:113
+#: src/media/context.rs:114
 msgid "Couldn't find GStreamer GTK video sink."
 msgstr "Impossible de trouver l'élément « GTK video sink »."
 
-#: src/media/context.rs:114
+#: src/media/context.rs:115
 msgid "Video playback will be disabled."
 msgstr "L'affichage vidéo sera désactivé."
 
-#: src/media/context.rs:115
+#: src/media/context.rs:116
 msgid "Please install {} or {}, depending on your distribution."
 msgstr "Veuillez installer {} ou {}, selon votre distribution."
 
-#: src/media/context.rs:154
+#: src/media/context.rs:158
 msgid "Could not set media in playing state."
 msgstr "Impossible de passer le média en mode lecture."
 
-#: src/media/context.rs:161
+#: src/media/context.rs:165
 msgid "Could not set media in paused state."
 msgstr "Impossible de passer le média en mode pause."
 
@@ -79,15 +79,15 @@ msgstr "Impossible de passer le média en mode pause."
 msgid "untitled"
 msgstr "sans titre"
 
-#: src/metadata/mkvmerge_text_format.rs:63
+#: src/metadata/mkvmerge_text_format.rs:59
 msgid "Failed to read mkvmerge text file."
 msgstr "Échec à la lecture du fichier texte mkvmerge"
 
-#: src/metadata/mkvmerge_text_format.rs:87
+#: src/metadata/mkvmerge_text_format.rs:85
 msgid "couldn't find chapter nb for: {}"
 msgstr "impossible de trouver le n° de chapitre : {}"
 
-#: src/metadata/mkvmerge_text_format.rs:102
+#: src/metadata/mkvmerge_text_format.rs:101
 msgid "unexpected timestamp: {}"
 msgstr "marqueur temporel non reconnu : {}"
 
@@ -95,11 +95,11 @@ msgstr "marqueur temporel non reconnu : {}"
 msgid "unexpected format for: {}"
 msgstr "format non reconnu pour : {}"
 
-#: src/metadata/mkvmerge_text_format.rs:128
+#: src/metadata/mkvmerge_text_format.rs:129
 msgid "expected '=' in: {}"
 msgstr "'=' attendu dans : {}"
 
-#: src/metadata/mkvmerge_text_format.rs:135
+#: src/metadata/mkvmerge_text_format.rs:136
 msgid "couldn't update last start position"
 msgstr "impossible de mettre à jour la dernière position de départ"
 
@@ -115,95 +115,112 @@ msgstr "Début"
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/info_controller.rs:280
+#: src/ui/info_controller.rs:278
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:91
+#: src/ui/main_controller.rs:93
 msgid "media-toc player"
 msgstr "lecteur media-toc"
 
-#: src/ui/main_controller.rs:130
+#: src/ui/main_controller.rs:136
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:236
+#: src/ui/main_controller.rs:242
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:241
+#: src/ui/main_controller.rs:247
 msgid "Open"
 msgstr "Ouvrir"
 
-#: src/ui/main_controller.rs:334 src/ui/main_controller.rs:403
+#: src/ui/main_controller.rs:340 src/ui/main_controller.rs:408
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
-#: src/ui/media-toc-player.ui:147
+#. Button tooltip
+#: src/ui/media-toc-player.ui:71
+msgid "Repeat current chapter"
+msgstr "Répéter le chapitre courant"
+
+#: src/ui/media-toc-player.ui:148
 msgid "Title:"
 msgstr "Titre :"
 
-#: src/ui/media-toc-player.ui:159
+#: src/ui/media-toc-player.ui:160
 msgid "Artist:"
 msgstr "Artiste :"
 
-#: src/ui/media-toc-player.ui:171
+#: src/ui/media-toc-player.ui:172
 msgid "Container:"
 msgstr "Conteneur :"
 
-#: src/ui/media-toc-player.ui:183
+#: src/ui/media-toc-player.ui:184
 msgid "Video Codec:"
 msgstr "Codec Vidéo :"
 
-#: src/ui/media-toc-player.ui:195
+#: src/ui/media-toc-player.ui:196
 msgid "Audio Codec:"
 msgstr "Codec Audio :"
 
-#: src/ui/media-toc-player.ui:207
+#: src/ui/media-toc-player.ui:208
 msgid "Duration:"
 msgstr "Durée :"
 
-#: src/ui/media-toc-player.ui:393
+#: src/ui/media-toc-player.ui:394
 msgid "Info text"
 msgstr "Message d'information"
 
-#: src/ui/media-toc-player.ui:455
+#: src/ui/media-toc-player.ui:456
 msgid "display"
 msgstr "affichage"
 
-#: src/ui/media-toc-player.ui:474
+#: src/ui/media-toc-player.ui:475
 msgid "Video Streams"
 msgstr "Flux vidéos"
 
-#: src/ui/media-toc-player.ui:508
+#: src/ui/media-toc-player.ui:509
 msgid "Audio Streams"
 msgstr "Flux Audios"
 
-#: src/ui/media-toc-player.ui:542
+#: src/ui/media-toc-player.ui:543
 msgid "Text Streams"
 msgstr "Flux Textes"
 
-#: src/ui/media-toc-player.ui:572
+#: src/ui/media-toc-player.ui:573
 msgid "streams"
 msgstr "flux"
 
-#: src/ui/media-toc-player.ui:610
+#: src/ui/media-toc-player.ui:611
 msgid "00:00.000"
 msgstr "00:00.000"
 
-#: src/ui/media-toc-player.ui:639
+#. Button tooltip
+#: src/ui/media-toc-player.ui:637
 msgid "Play / Pause"
 msgstr "Jouer / Mettre en pause"
 
-#: src/ui/media-toc-player.ui:652
-msgid "Repeat Chapter"
-msgstr "Répéter le chapitre"
+#. Button tooltip
+#: src/ui/media-toc-player.ui:696
+msgid "Perspective selector"
+msgstr "Sélecteur de perspective"
 
-#: src/ui/media-toc-player.ui:804
+#. Button tooltip
+#: src/ui/media-toc-player.ui:737
+msgid "Open media"
+msgstr "Ouvrir un fichier multimédia"
+
+#. Button tooltip
+#: src/ui/media-toc-player.ui:756
+msgid "Show / Hide chapters list"
+msgstr "Afficher / Cacher la liste chapitres"
+
+#: src/ui/media-toc-player.ui:807
 msgid "Display"
 msgstr "Affichage"
 
-#: src/ui/media-toc-player.ui:849
+#: src/ui/media-toc-player.ui:852
 msgid "Streams"
 msgstr "Flux"
 
@@ -227,22 +244,22 @@ msgstr "Codec"
 msgid "Comment"
 msgstr "Commentaire"
 
-#: src/ui/streams_controller.rs:308
+#: src/ui/streams_controller.rs:314
 msgid "Width"
 msgstr "Largeur"
 
-#: src/ui/streams_controller.rs:315
+#: src/ui/streams_controller.rs:321
 msgid "Height"
 msgstr "Hauteur"
 
-#: src/ui/streams_controller.rs:346
+#: src/ui/streams_controller.rs:358
 msgid "Rate"
 msgstr "Débit"
 
-#: src/ui/streams_controller.rs:353
+#: src/ui/streams_controller.rs:365
 msgid "Channels"
 msgstr "Canaux"
 
-#: src/ui/streams_controller.rs:384
+#: src/ui/streams_controller.rs:396
 msgid "Format"
 msgstr "Format"

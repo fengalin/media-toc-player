@@ -2,6 +2,6 @@
 *.gmo
 *.po~
 POTFILES
-media-toc.pot
+media-toc-player.pot
 stamp-it
 stamp-po
