@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-04-04 18:14+0200\n"
-"PO-Revision-Date: 2018-04-04 18:06+0200\n"
+"POT-Creation-Date: 2018-04-12 12:12+0200\n"
+"PO-Revision-Date: 2018-04-12 12:13+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -119,23 +119,29 @@ msgstr "Fin"
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:93
+#: src/ui/main_controller.rs:96
 msgid "media-toc player"
 msgstr "lecteur media-toc"
 
-#: src/ui/main_controller.rs:136
+#: src/ui/main_controller.rs:139
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:242
+#: src/ui/main_controller.rs:245
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:247
+#: src/ui/main_controller.rs:250
 msgid "Open"
 msgstr "Ouvrir"
 
-#: src/ui/main_controller.rs:340 src/ui/main_controller.rs:408
+#: src/ui/main_controller.rs:295 src/ui/main_controller.rs:345
+msgid "Missing plugin: {}"
+msgid_plural "Missing plugins: {}"
+msgstr[0] "Greffon manquant : {}"
+msgstr[1] "Greffons manquants : {}"
+
+#: src/ui/main_controller.rs:383 src/ui/main_controller.rs:453
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
@@ -144,83 +150,83 @@ msgstr "Erreur à l'ouverture du fichier. {}"
 msgid "Repeat current chapter"
 msgstr "Répéter le chapitre courant"
 
-#: src/ui/media-toc-player.ui:148
-msgid "Title:"
-msgstr "Titre :"
-
-#: src/ui/media-toc-player.ui:160
-msgid "Artist:"
-msgstr "Artiste :"
-
-#: src/ui/media-toc-player.ui:172
-msgid "Container:"
-msgstr "Conteneur :"
-
-#: src/ui/media-toc-player.ui:184
-msgid "Video Codec:"
-msgstr "Codec Vidéo :"
-
-#: src/ui/media-toc-player.ui:196
-msgid "Audio Codec:"
-msgstr "Codec Audio :"
-
-#: src/ui/media-toc-player.ui:208
-msgid "Duration:"
-msgstr "Durée :"
-
-#: src/ui/media-toc-player.ui:394
-msgid "Info text"
-msgstr "Message d'information"
-
-#: src/ui/media-toc-player.ui:456
-msgid "display"
-msgstr "affichage"
-
-#: src/ui/media-toc-player.ui:475
-msgid "Video Streams"
-msgstr "Flux vidéos"
-
-#: src/ui/media-toc-player.ui:509
-msgid "Audio Streams"
-msgstr "Flux Audios"
-
-#: src/ui/media-toc-player.ui:543
-msgid "Text Streams"
-msgstr "Flux Textes"
-
-#: src/ui/media-toc-player.ui:573
-msgid "streams"
-msgstr "flux"
-
-#: src/ui/media-toc-player.ui:611
-msgid "00:00.000"
-msgstr "00:00.000"
-
 #. Button tooltip
-#: src/ui/media-toc-player.ui:637
-msgid "Play / Pause"
-msgstr "Jouer / Mettre en pause"
-
-#. Button tooltip
-#: src/ui/media-toc-player.ui:696
+#: src/ui/media-toc-player.ui:130
 msgid "Perspective selector"
 msgstr "Sélecteur de perspective"
 
 #. Button tooltip
-#: src/ui/media-toc-player.ui:737
+#: src/ui/media-toc-player.ui:171
 msgid "Open media"
 msgstr "Ouvrir un fichier multimédia"
 
 #. Button tooltip
-#: src/ui/media-toc-player.ui:756
+#: src/ui/media-toc-player.ui:190
 msgid "Show / Hide chapters list"
 msgstr "Afficher / Cacher la liste chapitres"
 
-#: src/ui/media-toc-player.ui:807
+#: src/ui/media-toc-player.ui:230
+msgid "Title:"
+msgstr "Titre :"
+
+#: src/ui/media-toc-player.ui:242
+msgid "Artist:"
+msgstr "Artiste :"
+
+#: src/ui/media-toc-player.ui:254
+msgid "Container:"
+msgstr "Conteneur :"
+
+#: src/ui/media-toc-player.ui:266
+msgid "Video Codec:"
+msgstr "Codec Vidéo :"
+
+#: src/ui/media-toc-player.ui:278
+msgid "Audio Codec:"
+msgstr "Codec Audio :"
+
+#: src/ui/media-toc-player.ui:290
+msgid "Duration:"
+msgstr "Durée :"
+
+#: src/ui/media-toc-player.ui:476
+msgid "Info text"
+msgstr "Message d'information"
+
+#: src/ui/media-toc-player.ui:538
+msgid "display"
+msgstr "affichage"
+
+#: src/ui/media-toc-player.ui:557
+msgid "Video Streams"
+msgstr "Flux vidéos"
+
+#: src/ui/media-toc-player.ui:591
+msgid "Audio Streams"
+msgstr "Flux Audios"
+
+#: src/ui/media-toc-player.ui:625
+msgid "Text Streams"
+msgstr "Flux Textes"
+
+#: src/ui/media-toc-player.ui:655
+msgid "streams"
+msgstr "flux"
+
+#: src/ui/media-toc-player.ui:693
+msgid "00:00.000"
+msgstr "00:00.000"
+
+#. Button tooltip
+#: src/ui/media-toc-player.ui:719
+msgid "Play / Pause"
+msgstr "Jouer / Mettre en pause"
+
+#: src/ui/media-toc-player.ui:806
 msgid "Display"
 msgstr "Affichage"
 
-#: src/ui/media-toc-player.ui:852
+#: src/ui/media-toc-player.ui:851
 msgid "Streams"
 msgstr "Flux"
 

@@ -1,4 +1,4 @@
-use gettextrs::gettext;
+use gettextrs::{gettext, ngettext};
 use glib;
 use gstreamer as gst;
 use gtk;
@@ -8,6 +8,7 @@ use gdk::{Cursor, CursorType, WindowExt};
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
 
@@ -44,6 +45,7 @@ pub struct MainController {
     streams_ctrl: Rc<RefCell<StreamsController>>,
 
     context: Option<PlaybackContext>,
+    missing_plugins: HashSet<String>,
     state: ControllerState,
     seeking: bool,
 
@@ -69,6 +71,7 @@ impl MainController {
             streams_ctrl: StreamsController::new(builder),
 
             context: None,
+            missing_plugins: HashSet::<String>::new(),
             state: ControllerState::Stopped,
             seeking: false,
 
@@ -273,6 +276,36 @@ impl MainController {
         }
     }
 
+    fn handle_missing_plugins(&self) -> bool {
+        if !self.missing_plugins.is_empty() {
+            let mut missing_nb = 0;
+            let mut missing_list = String::new();
+
+            self.missing_plugins.iter().for_each(|missing_plugin| {
+                if missing_nb > 0 {
+                    missing_list += ", ";
+                }
+
+                missing_list += missing_plugin;
+                missing_nb += 1;
+            });
+
+            let message = format!("{}",
+                ngettext(
+                    "Missing plugin: {}",
+                    "Missing plugins: {}",
+                    missing_nb
+                ).replacen("{}", &missing_list, 1),
+            );
+            self.show_message(gtk::MessageType::Info, &message);
+            error!("{}", message);
+
+            true
+        } else {
+            false
+        }
+    }
+
     fn register_listener(&mut self, timeout: u32, ui_rx: Receiver<ContextMessage>) {
         if self.listener_src.is_some() {
             return;
@@ -303,8 +336,14 @@ impl MainController {
 
                         this.register_tracker();
                         this.play_pause_btn.set_icon_name(PAUSE_ICON);
-                        this.state = ControllerState::Playing;
                         this.set_context(context);
+
+                        this.handle_missing_plugins();
+                        this.state = ControllerState::Playing;
+                    }
+                    MissingPlugin(plugin) => {
+                        error!("{}", gettext("Missing plugin: {}").replacen("{}", &plugin, 1));
+                        this_rc.borrow_mut().missing_plugins.insert(plugin);
                     }
                     Eos => {
                         let mut this = this_rc.borrow_mut();
@@ -337,9 +376,14 @@ impl MainController {
                         this.keep_going = false;
                         keep_going = false;
 
-                        let error = gettext("Error opening file. {}").replacen("{}", &error, 1);
-                        this.show_message(gtk::MessageType::Error, &error);
-                        error!("{}", error);
+
+                        if !this.missing_plugins.is_empty() {
+                            this.handle_missing_plugins();
+                        } else {
+                            let error = gettext("Error opening file. {}").replacen("{}", &error, 1);
+                            this.show_message(gtk::MessageType::Error, &error);
+                            error!("{}", error);
+                        }
                     }
                 };
 
@@ -395,6 +439,7 @@ impl MainController {
         let (ctx_tx, ui_rx) = channel();
 
         self.state = ControllerState::Stopped;
+        self.missing_plugins.clear();
         self.seeking = false;
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);

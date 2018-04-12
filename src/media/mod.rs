@@ -6,5 +6,6 @@ pub enum ContextMessage {
     Eos,
     FailedToOpenMedia(String),
     InitDone,
+    MissingPlugin(String),
     StreamsSelected,
 }
