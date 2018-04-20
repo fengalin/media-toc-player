@@ -16,3 +16,6 @@
 
 # Flatpak build tree
 .flatpak-builder
+
+# gnome-builder build config file
+.buildconfig
