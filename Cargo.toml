@@ -26,3 +26,6 @@ lazy_static = "^1.0.0"
 log = { version = "^0.4.1", features = ["max_level_debug", "release_max_level_warn"] }
 
 gettext-rs = { git = "https://github.com/Koka/gettext-rs", features = ["gettext-system"] }
+
+#nom = { git = "https://github.com/Geal/nom" }
+nom = { git = "https://github.com/fengalin/nom", branch = "parse_to_error_kind" }

@@ -195,15 +195,23 @@ impl InfoController {
         Inhibit(true)
     }
 
-    fn show_error(&self, message: String) {
+    fn show_message(&self, message_type: gtk::MessageType, message: String) {
         let main_ctrl_weak = Weak::clone(self.main_ctrl.as_ref().unwrap());
         gtk::idle_add(move || {
             let main_ctrl_rc = main_ctrl_weak.upgrade().unwrap();
             main_ctrl_rc
                 .borrow()
-                .show_message(gtk::MessageType::Error, &message);
+                .show_message(message_type, &message);
             glib::Continue(false)
         });
+    }
+
+    fn show_error(&self, message: String) {
+        self.show_message(gtk::MessageType::Error, message);
+    }
+
+    fn show_info(&self, message: String) {
+        self.show_message(gtk::MessageType::Info, message);
     }
 
     pub fn new_media(&mut self, context: &PlaybackContext) {
@@ -263,13 +271,33 @@ impl InfoController {
 
             self.streams_changed(&info);
 
-            let extern_toc = toc_candidates.next().and_then(|(toc_path, format)| {
-                match File::open(toc_path) {
+            let extern_toc = toc_candidates
+                .next()
+                .and_then(|(toc_path, format)| match File::open(toc_path.clone()) {
                     Ok(mut toc_file) => {
                         match metadata::Factory::get_reader(&format).read(&info, &mut toc_file) {
-                            Ok(toc) => Some(toc),
+                            Ok(Some(toc)) => Some(toc),
+                            Ok(None) => {
+                                let msg = gettext("No toc in file \"{}\"")
+                                    .replacen(
+                                        "{}",
+                                        toc_path.file_name().unwrap().to_str().unwrap(),
+                                        1,
+                                    );
+                                info!("{}", msg);
+                                self.show_info(msg);
+                                None
+                            }
                             Err(err) => {
-                                self.show_error(err);
+                                self.show_error(
+                                    gettext("Error opening toc file \"{}\":\n{}")
+                                        .replacen(
+                                            "{}",
+                                            toc_path.file_name().unwrap().to_str().unwrap(),
+                                            1,
+                                        )
+                                        .replacen("{}", &err, 1)
+                                );
                                 None
                             }
                         }
@@ -278,8 +306,7 @@ impl InfoController {
                         self.show_error(gettext("Failed to open toc file."));
                         None
                     }
-                }
-            });
+                });
 
             if extern_toc.is_some() {
                 self.chapter_manager.replace_with(&extern_toc);
