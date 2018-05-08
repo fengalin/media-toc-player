@@ -361,7 +361,7 @@ impl MainController {
                         let mut this = this_rc.borrow_mut();
                         let mut context = this.context.take().unwrap();
                         {
-                            let info = context.info.lock().unwrap();
+                            let info = context.info.read().unwrap();
                             this.info_ctrl.borrow().streams_changed(&info);
                         }
                         this.set_context(context);

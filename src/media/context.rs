@@ -11,7 +11,7 @@ use gtk;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use metadata::MediaInfo;
 
@@ -42,7 +42,7 @@ pub struct PlaybackContext {
     pub file_name: String,
     pub name: String,
 
-    pub info: Arc<Mutex<MediaInfo>>,
+    pub info: Arc<RwLock<MediaInfo>>,
 }
 
 // FIXME: might need to `release_request_pad` on the tee
@@ -73,12 +73,12 @@ impl PlaybackContext {
             name: String::from(path.file_stem().unwrap().to_str().unwrap()),
             path,
 
-            info: Arc::new(Mutex::new(MediaInfo::new())),
+            info: Arc::new(RwLock::new(MediaInfo::new())),
         };
 
         this.pipeline.add(&this.decodebin).unwrap();
 
-        this.info.lock().unwrap().file_name = file_name;
+        this.info.write().unwrap().file_name = file_name;
 
         this.build_pipeline((*VIDEO_SINK).as_ref().unwrap().clone());
         this.register_bus_inspector(ctx_tx);
@@ -191,7 +191,7 @@ impl PlaybackContext {
         self.decodebin.send_event(select_streams_evt);
 
         {
-            let mut info = self.info.lock().unwrap();
+            let mut info = self.info.write().unwrap();
             info.streams.select_streams(&stream_ids);
         }
     }
@@ -279,12 +279,12 @@ impl PlaybackContext {
                     if pipeline_state == PipelineState::StreamsSelected {
                         pipeline_state = PipelineState::Initialized;
                         {
-                            let info = &mut info_arc_mtx.lock().unwrap();
-                            info.duration = pipeline
+                            let duration = pipeline
                                 .query_duration::<gst::ClockTime>()
                                 .unwrap_or_else(|| 0.into())
                                 .nanoseconds()
                                 .unwrap();
+                            info_arc_mtx.write().unwrap().duration = duration;
                         }
                         ctx_tx.send(ContextMessage::InitDone).unwrap();
                     } else if pipeline_state == PipelineState::Initialized {
@@ -293,8 +293,10 @@ impl PlaybackContext {
                 }
                 gst::MessageView::Tag(msg_tag) => {
                     if pipeline_state != PipelineState::Initialized {
-                        let info = &mut info_arc_mtx.lock().unwrap();
-                        info.tags = info.tags
+                        info_arc_mtx
+                            .write()
+                            .unwrap()
+                            .tags
                             .merge(&msg_tag.get_tags(), gst::TagMergeMode::Replace);
                     }
                 }
@@ -303,8 +305,7 @@ impl PlaybackContext {
                         // FIXME: use updated
                         let (toc, _updated) = msg_toc.get_toc();
                         if toc.get_scope() == gst::TocScope::Global {
-                            let info = &mut info_arc_mtx.lock().unwrap();
-                            info.toc = Some(toc);
+                            info_arc_mtx.write().unwrap().toc = Some(toc);
                         } else {
                             warn!("skipping toc with scope: {:?}", toc.get_scope());
                         }
@@ -324,7 +325,7 @@ impl PlaybackContext {
                 }
                 gst::MessageView::StreamCollection(msg_stream_collection) => {
                     let stream_collection = msg_stream_collection.get_stream_collection();
-                    let info = &mut info_arc_mtx.lock().unwrap();
+                    let info = &mut info_arc_mtx.write().unwrap();
                     stream_collection
                         .iter()
                         .for_each(|stream| info.streams.add_stream(&stream));

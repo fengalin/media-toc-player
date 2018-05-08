@@ -82,7 +82,7 @@ impl VideoController {
 
             let has_video = context
                 .info
-                .lock()
+                .read()
                 .unwrap()
                 .streams
                 .video_selected

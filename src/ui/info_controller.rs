@@ -235,7 +235,7 @@ impl InfoController {
             });
 
         {
-            let info = context.info.lock().unwrap();
+            let info = context.info.read().unwrap();
 
             self.duration = info.duration;
             self.timeline_scale.set_range(0f64, info.duration as f64);

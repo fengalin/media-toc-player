@@ -143,7 +143,7 @@ impl StreamsController {
     pub fn new_media(&mut self, context: &PlaybackContext) {
         let info = context
             .info
-            .lock()
+            .read()
             .expect("StreamsController::have_streams: failed to lock media info");
 
         // Video streams
