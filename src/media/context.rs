@@ -11,7 +11,7 @@ use gtk;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 use metadata::MediaInfo;
 
