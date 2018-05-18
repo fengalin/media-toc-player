@@ -122,7 +122,11 @@ impl MainController {
 
             if is_gst_ok {
                 this_mut.video_ctrl.register_callbacks(&this);
-                PerspectiveController::register_callbacks(&this_mut.perspective_ctrl, &this);
+                PerspectiveController::register_callbacks(
+                    &this_mut.perspective_ctrl,
+                    gtk_app,
+                    &this,
+                );
                 InfoController::register_callbacks(&this_mut.info_ctrl, &this);
                 StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
 
