@@ -1,3 +1,5 @@
+pub const APP_ID: &str = "org.fengalin.media-toc-player";
+
 mod info_controller;
 use self::info_controller::InfoController;
 

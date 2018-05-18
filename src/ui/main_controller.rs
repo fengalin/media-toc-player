@@ -1,21 +1,25 @@
-use gettextrs::{gettext, ngettext};
-use glib;
-use gstreamer as gst;
-use gtk;
-use gtk::prelude::*;
-
-use gdk::{Cursor, CursorType, WindowExt};
-
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
 
+use gettextrs::{gettext, ngettext};
+use glib;
+use gstreamer as gst;
+use gtk;
+use gtk::prelude::*;
+
+use gio;
+use gio::prelude::*;
+use gio::MenuExt;
+
+use gdk::{Cursor, CursorType, WindowExt};
+
 use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
-use super::{InfoController, PerspectiveController, StreamsController, VideoController};
+use super::{APP_ID, InfoController, PerspectiveController, StreamsController, VideoController};
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
@@ -57,9 +61,13 @@ pub struct MainController {
 }
 
 impl MainController {
-    pub fn new(builder: &gtk::Builder, is_gst_ok: bool) -> Rc<RefCell<Self>> {
+    pub fn new(gtk_app: &gtk::Application, is_gst_ok: bool) -> Rc<RefCell<Self>> {
+        let builder = gtk::Builder::new_from_string(include_str!("media-toc-player.ui"));
+        let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
+        window.set_application(gtk_app);
+
         let this = Rc::new(RefCell::new(MainController {
-            window: builder.get_object("application-window").unwrap(),
+            window,
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
@@ -67,10 +75,10 @@ impl MainController {
             info_bar: builder.get_object("info_bar").unwrap(),
             info_bar_lbl: builder.get_object("info_bar-lbl").unwrap(),
 
-            perspective_ctrl: PerspectiveController::new(builder),
-            video_ctrl: VideoController::new(builder),
-            info_ctrl: InfoController::new(builder),
-            streams_ctrl: StreamsController::new(builder),
+            perspective_ctrl: PerspectiveController::new(&builder),
+            video_ctrl: VideoController::new(&builder),
+            info_ctrl: InfoController::new(&builder),
+            streams_ctrl: StreamsController::new(&builder),
 
             context: None,
             missing_plugins: HashSet::<String>::new(),
@@ -89,20 +97,30 @@ impl MainController {
             let this_rc = Rc::clone(&this);
             this_mut.this_opt = Some(this_rc);
 
-            this_mut.window.connect_delete_event(|_, _| {
-                gtk::main_quit();
-                Inhibit(false)
-            });
             this_mut
                 .header_bar
                 .set_title(gettext("media-toc player").as_str());
 
-            if is_gst_ok {
-                let revealer = this_mut.info_bar_revealer.clone();
-                this_mut
-                    .info_bar
-                    .connect_response(move |_, _| revealer.set_reveal_child(false));
+            let app_menu = gio::Menu::new();
+            gtk_app.set_app_menu(&app_menu);
 
+            // Register About action
+            let about = gio::SimpleAction::new("about", None);
+            gtk_app.add_action(&about);
+            let this_rc = Rc::clone(&this);
+            about.connect_activate(move |_, _| this_rc.borrow().about());
+            gtk_app.set_accels_for_action("app.about", &["<Ctrl>A"]);
+            app_menu.append(&gettext("About")[..], "app.about");
+
+            // Register Quit action
+            let quit = gio::SimpleAction::new("quit", None);
+            gtk_app.add_action(&quit);
+            let this_rc = Rc::clone(&this);
+            quit.connect_activate(move |_, _| this_rc.borrow_mut().quit());
+            gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
+            app_menu.append(&gettext("Quit")[..], "app.quit");
+
+            if is_gst_ok {
                 this_mut.video_ctrl.register_callbacks(&this);
                 PerspectiveController::register_callbacks(&this_mut.perspective_ctrl, &this);
                 InfoController::register_callbacks(&this_mut.info_ctrl, &this);
@@ -128,14 +146,21 @@ impl MainController {
                 });
                 this_mut.open_btn.set_sensitive(true);
 
+                // Register Play/Pause action
+                let play_pause = gio::SimpleAction::new("play_pause", None);
+                gtk_app.add_action(&play_pause);
                 let this_rc = Rc::clone(&this);
-                this_mut.play_pause_btn.connect_clicked(move |_| {
+                play_pause.connect_activate(move |_, _| {
                     this_rc.borrow_mut().play_pause();
                 });
+                gtk_app.set_accels_for_action("app.play_pause", &["P"]); // FIXME: use Spacebar...
+
                 this_mut.play_pause_btn.set_sensitive(true);
 
-            // TODO: add key bindings to seek by steps
-            // play/pause, etc.
+                let revealer = this_mut.info_bar_revealer.clone();
+                this_mut
+                    .info_bar
+                    .connect_response(move |_, _| revealer.set_reveal_child(false));
             } else {
                 // GStreamer initialization failed
                 this_mut.info_bar.connect_response(|_, _| gtk::main_quit());
@@ -151,6 +176,32 @@ impl MainController {
 
     pub fn show_all(&self) {
         self.window.show_all();
+    }
+
+    fn about(&self) {
+        let dialog = gtk::AboutDialog::new();
+        dialog.set_modal(true);
+        dialog.set_transient_for(&self.window);
+
+        dialog.set_program_name("media-toc-player");
+        dialog.set_logo_icon_name(APP_ID);
+        dialog.set_comments(&gettext("A media player with a table of contents")[..]);
+        dialog.set_copyright(&gettext("© 2017–2018 François Laignel")[..]);
+        dialog.set_license_type(gtk::License::MitX11);
+        dialog.set_version(env!("CARGO_PKG_VERSION"));
+        dialog.set_website("https://github.com/fengalin/media-toc-player");
+        dialog.set_website_label(&gettext("Learn more about media-toc-player")[..]);
+
+        dialog.show();
+    }
+
+    fn quit(&mut self) {
+        self.remove_tracker();
+        if let Some(context) = self.context.take() {
+            context.stop();
+        }
+        self.remove_listener();
+        self.window.destroy();
     }
 
     pub fn show_message(&self, type_: gtk::MessageType, message: &str) {

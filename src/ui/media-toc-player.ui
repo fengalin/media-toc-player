@@ -797,6 +797,7 @@ Author: François Laignel
                             <property name="halign">end</property>
                             <property name="valign">end</property>
                             <property name="visible_vertical">False</property>
+                            <property name="action_name">app.play_pause</property>
                             <property name="icon_name">media-playback-start-symbolic</property>
                             <style>
                               <class name="image-button"/>

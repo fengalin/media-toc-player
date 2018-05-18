@@ -19,6 +19,7 @@ clap = "^2.31.2"
 env_logger = "^0.5.6"
 gdk = "^0.8.0"
 glib = "^0.5.0"
+gio = "^0.4.0"
 gstreamer = { version = "^0.11.0", features = ["v1_10"] }
 gtk = { version = "^0.4.0", features = ["v3_18"] }
 image = "^0.18.0"

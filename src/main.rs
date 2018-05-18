@@ -3,6 +3,7 @@ extern crate clap;
 extern crate env_logger;
 extern crate gdk;
 extern crate gettextrs;
+extern crate gio;
 extern crate glib;
 extern crate gstreamer;
 extern crate gtk;
@@ -19,17 +20,17 @@ use clap::{App, Arg};
 
 use gettextrs::{gettext, TextDomain, TextDomainError};
 
-use gtk::Builder;
+use gio::prelude::*;
+
+use std::path::PathBuf;
 
 mod ui;
-use ui::MainController;
+use ui::{APP_ID, MainController};
 
 mod media;
 mod metadata;
 
-fn main() {
-    env_logger::init();
-
+fn init_locale() {
     match TextDomain::new("media-toc-player").prepend("target").init() {
         Ok(locale) => info!("Translation found, `setlocale` returned {:?}", locale),
         Err(TextDomainError::TranslationNotFound(lang)) => {
@@ -37,18 +38,17 @@ fn main() {
         }
         Err(TextDomainError::InvalidLocale(locale)) => error!("Invalid locale {}", locale),
     }
+}
 
-    // Messages are not translated unless gtk (glib) is initialized
-    let is_gtk_ok = gtk::init().is_ok();
-
+fn handle_command_line() -> Option<PathBuf> {
     let about_msg = gettext("A media player with a table of contents");
     let help_msg = gettext("Display this message");
     let version_msg = gettext("Print version information");
 
     let input_arg = gettext("MEDIA");
 
-    let matches = App::new("media-toc-player")
-        .version("0.1.0")
+    App::new("media-toc-player")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("François Laignel <fengalin@free.fr>")
         .about(about_msg.as_str())
         .help_message(help_msg.as_str())
@@ -58,28 +58,49 @@ fn main() {
                 .help(&gettext("Path to the input media file"))
                 .last(false),
         )
-        .get_matches();
+        .get_matches()
+        .value_of(input_arg.as_str())
+        .map(|input_file| input_file.into())
+}
 
-    if !is_gtk_ok {
+fn run(is_gst_ok: bool, input_file: Option<PathBuf>) {
+    // Init App
+    let gtk_app = gtk::Application::new(APP_ID, gio::ApplicationFlags::empty())
+        .expect("Failed to initialize GtkApplication");
+
+    gtk_app.connect_startup(move |gtk_app| {
+        let main_ctrl = MainController::new(gtk_app, is_gst_ok);
+        let input_file = input_file.clone();
+        gtk_app.connect_activate(move |_| {
+            let mut main_ctrl = main_ctrl.borrow_mut();
+            main_ctrl.show_all();
+
+            if is_gst_ok {
+                if let Some(ref input_file) = input_file {
+                    // FIXME: there must be a lifetime way to avoid
+                    // all these duplications
+                    main_ctrl.open_media(input_file.clone());
+                }
+            }
+        });
+    });
+
+    gtk_app.run(&[]);
+}
+
+fn main() {
+    env_logger::init();
+
+    init_locale();
+
+    // Messages are not translated unless gtk (glib) is initialized
+    let is_gtk_ok = gtk::init().is_ok();
+
+    let input_file = handle_command_line();
+
+    if is_gtk_ok {
+        run(gstreamer::init().is_ok(), input_file);
+    } else {
         error!("{}", gettext("Failed to initialize GTK"));
-        return;
     }
-
-    // TODO: there's a `Settings` struct in GTK:
-    // https://github.com/gtk-rs/gtk/blob/master/src/auto/settings.rs
-
-    let is_gst_ok = gstreamer::init().is_ok();
-    let main_ctrl = MainController::new(
-        &Builder::new_from_string(include_str!("ui/media-toc-player.ui")),
-        is_gst_ok,
-    );
-    main_ctrl.borrow().show_all();
-
-    if is_gst_ok {
-        if let Some(input_file) = matches.value_of(input_arg.as_str()) {
-            main_ctrl.borrow_mut().open_media(input_file.into());
-        }
-    }
-
-    gtk::main();
 }
