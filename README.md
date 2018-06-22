@@ -6,30 +6,39 @@ to a given chapter and optionally looping on current chapter.
 an application to create and edit a table of contents from a media file. It is
 primarily developed in Rust on Linux, it runs on Windows and should also work on macOS.
 
-## <a name='ui'></a>Screenshot
-![media-toc-player UI Video](assets/media-toc-player_video.png)
+## Table of contents
+- [Screenshots](#ui)
+- [Features](#features)
+- [TODO](#todo)
+- [Technologies](#technologies)
+- [Build environment](#build-env)
+- [Build and run](#build-run)
+- [Troubleshooting](#troubleshooting)
 
-# Features
+## <a name='ui'></a>Screenshot
+![media-toc-player UI Video](assets/screenshots/media-toc-player_video.png)
+
+# <a name='features'></a>Features
 - Play any media supported by the installed GStreamer plugins.
 - Select the video / audio stream to play.
 - Show the chapters list for the media.
 - Move to a chapter by clicking on its entry the list.
 - Loop on current chapter.
 
-# Todo
+# <a name='todo'></a>TODO
 - Switch to full screen mode.
 - Display subtitles.
 - Make timeline foldable.
 - Finalize flatpak and deal with potential license issues with plugins.
 
-# Technologies
+# <a name='technologies'></a>Technologies
 **media-toc-player** is developed in Rust and uses the following technologies:
 - **GTK-3** ([official documentation](https://developer.gnome.org/gtk3/stable/),
 [Rust binding](http://gtk-rs.org/docs/gtk/)) and [Glade](https://glade.gnome.org/).
 - **GStreamer** ([official documentation](https://gstreamer.freedesktop.org/documentation/),
 [Rust binding](https://sdroege.github.io/rustdoc/gstreamer/gstreamer/)).
 
-# Environment preparation
+# <a name='build-env'></a>Environment preparation
 ## Toolchain
 ```
 $ curl https://sh.rustup.rs -sSf | sh
@@ -79,8 +88,8 @@ PATH="/usr/local/opt/gettext/bin:$PATH" cargo build --release
 - Install the development toolchain, GTK and GStreamer<br>
 Note: for a 32bits system, use `mingw-w64-i686-...`
 ```
-pacman --noconfirm -S gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer \
-	mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
+pacman --noconfirm -S gettext-devel mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gstreamer
+pacman --noconfirm -S mingw-w64-x86_64-gst-plugins-{base,good,bad,ugly} mingw-w64-x86_64-gst-libav
 ```
 
 - Launch the [rustup installer](https://www.rustup.rs/).
@@ -93,8 +102,21 @@ When asked for the default host triple, select `x86_64-pc-windows-gnu` (or
   ```
   - Restart the MSYS2 shell before using `cargo`.
 
-# Build and run
+# <a name='build-run'></a>Build and run
 Use Cargo (from the root of the project directory):
 ```
 $ cargo run --release
+```
+
+# <a name='troubleshooting'></a>Troubleshooting
+
+## Discarding the translations
+
+*media-toc-player* is currently available in English and French. The user's
+locale should be automatically detected. If you want to use the English version
+or if you want to submit logs, you can discard the translations using the
+following command:
+
+```
+LC_MESSAGES=C cargo run --release
 ```
