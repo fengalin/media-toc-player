@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-04-30 16:33+0200\n"
-"PO-Revision-Date: 2018-04-30 16:35+0200\n"
+"POT-Creation-Date: 2018-06-22 22:13+0200\n"
+"PO-Revision-Date: 2018-06-22 22:09+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -19,27 +19,118 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Gtranslator 2.91.7\n"
 
-#: src/main.rs:44
+#. Button tooltip
+#: assets/ui/media-toc-player.ui:71
+msgid "Repeat current chapter"
+msgstr "Répéter le chapitre courant"
+
+#. Button tooltip
+#: assets/ui/media-toc-player.ui:130
+msgid "Perspective selector"
+msgstr "Sélecteur de perspective"
+
+#. Button tooltip
+#: assets/ui/media-toc-player.ui:170
+msgid "Open media"
+msgstr "Ouvrir un fichier multimédia"
+
+#. Button tooltip
+#: assets/ui/media-toc-player.ui:189
+msgid "Show / Hide chapters list"
+msgstr "Afficher / Cacher la liste chapitres"
+
+#: assets/ui/media-toc-player.ui:260
+msgid "Title:"
+msgstr "Titre :"
+
+#: assets/ui/media-toc-player.ui:272
+msgid "Artist:"
+msgstr "Artiste :"
+
+#: assets/ui/media-toc-player.ui:284
+msgid "Container:"
+msgstr "Conteneur :"
+
+#: assets/ui/media-toc-player.ui:296
+msgid "Video Codec:"
+msgstr "Codec Vidéo :"
+
+#: assets/ui/media-toc-player.ui:308
+msgid "Audio Codec:"
+msgstr "Codec Audio :"
+
+#: assets/ui/media-toc-player.ui:320
+msgid "Duration:"
+msgstr "Durée :"
+
+#: assets/ui/media-toc-player.ui:503
+msgid "Video Streams"
+msgstr "Flux vidéos"
+
+#: assets/ui/media-toc-player.ui:536
+msgid "Audio Streams"
+msgstr "Flux Audios"
+
+#: assets/ui/media-toc-player.ui:569
+msgid "Text Streams"
+msgstr "Flux Textes"
+
+#: assets/ui/media-toc-player.ui:701
+msgid "Info text"
+msgstr "Message d'information"
+
+#. Button tooltip
+#: assets/ui/media-toc-player.ui:793
+msgid "Play / Pause"
+msgstr "Jouer / Mettre en pause"
+
+#. Name of the perspective
+#: assets/ui/media-toc-player.ui:895
+msgid "Display"
+msgstr "Affichage"
+
+#. Name of the perspective
+#: assets/ui/media-toc-player.ui:956
+msgid "Streams"
+msgstr "Flux"
+
+#: src/application/command_line.rs:13 src/ui/main_controller.rs:209
 msgid "A media player with a table of contents"
 msgstr "Un lecteur multimédia muni d'une table des matières"
 
-#: src/main.rs:45
+#: src/application/command_line.rs:14
 msgid "Display this message"
 msgstr "Affiche ce message"
 
-#: src/main.rs:46
+#: src/application/command_line.rs:15
 msgid "Print version information"
 msgstr "Affiche la version"
 
-#: src/main.rs:48
+#: src/application/command_line.rs:18
 msgid "MEDIA"
 msgstr "MÉDIA"
 
-#: src/main.rs:58
+#: src/application/command_line.rs:34
 msgid "Path to the input media file"
 msgstr "Chemin du fichier multimédia"
 
-#: src/main.rs:64
+#: src/application/configuration.rs:61
+msgid "couldn't load configuration: {}"
+msgstr "impossible de charger la configuration : {}"
+
+#: src/application/configuration.rs:98
+msgid "couldn't write configuration: {}"
+msgstr "impossible d'écrire la configuration : {}"
+
+#: src/application/configuration.rs:109
+msgid "couldn't serialize configuration: {}"
+msgstr "impossible de sérialiser la configuration : {}"
+
+#: src/application/configuration.rs:121
+msgid "couldn't create configuration file: {}"
+msgstr "impossible de créer le fichier de configuration : {}"
+
+#: src/main.rs:45
 msgid "Failed to initialize GTK"
 msgstr "Impossible d'intialiser GTK"
 
@@ -84,19 +175,19 @@ msgid "unexpected error reading mkvmerge text file."
 msgstr "erreur inattendue à la lecture du fichier texte mkvmerge"
 
 #: src/metadata/mkvmerge_text_format.rs:136
-#: src/metadata/mkvmerge_text_format.rs:158
+#: src/metadata/mkvmerge_text_format.rs:161
 msgid "unexpected sequence starting with: {}"
 msgstr "séquence inattendue commençant par : {}"
 
-#: src/metadata/mkvmerge_text_format.rs:150
+#: src/metadata/mkvmerge_text_format.rs:153
 msgid "expecting a number, found: {}"
 msgstr "un nombre est attendu au lieu de : {}"
 
-#: src/metadata/mkvmerge_text_format.rs:154
+#: src/metadata/mkvmerge_text_format.rs:157
 msgid "chapter numbers don't match for: {}"
 msgstr "les numéros de chapitre ne correspondent pas pour : {}"
 
-#: src/metadata/mkvmerge_text_format.rs:191
+#: src/metadata/mkvmerge_text_format.rs:194
 msgid "couldn't update last start position"
 msgstr "impossible de mettre à jour la dernière position de départ"
 
@@ -128,116 +219,51 @@ msgstr ""
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:96
+#: src/ui/main_controller.rs:106
 msgid "media-toc player"
 msgstr "lecteur media-toc"
 
-#: src/ui/main_controller.rs:140
+#: src/ui/main_controller.rs:117
+msgid "About"
+msgstr "À propos"
+
+#: src/ui/main_controller.rs:125
+msgid "Quit"
+msgstr "Quitter"
+
+#: src/ui/main_controller.rs:189
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:246
+#: src/ui/main_controller.rs:210
+msgid "© 2017–2018 François Laignel"
+msgstr "© 2017–2018 François Laignel"
+
+#: src/ui/main_controller.rs:214
+msgid "Learn more about media-toc-player"
+msgstr "En apprendre plus sur media-toc-player"
+
+#: src/ui/main_controller.rs:328
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:251
+#: src/ui/main_controller.rs:332
+msgid "Cancel"
+msgstr "Annuler"
+
+#: src/ui/main_controller.rs:333
 msgid "Open"
 msgstr "Ouvrir"
 
-#: src/ui/main_controller.rs:296 src/ui/main_controller.rs:346
+#: src/ui/main_controller.rs:383 src/ui/main_controller.rs:433
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
 msgstr[0] "Greffon manquant : {}"
 msgstr[1] "Greffons manquants : {}"
 
-#: src/ui/main_controller.rs:384 src/ui/main_controller.rs:454
+#: src/ui/main_controller.rs:471 src/ui/main_controller.rs:543
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
-
-#. Button tooltip
-#: src/ui/media-toc-player.ui:80
-msgid "Repeat current chapter"
-msgstr "Répéter le chapitre courant"
-
-#. Button tooltip
-#: src/ui/media-toc-player.ui:139
-msgid "Perspective selector"
-msgstr "Sélecteur de perspective"
-
-#. Button tooltip
-#: src/ui/media-toc-player.ui:180
-msgid "Open media"
-msgstr "Ouvrir un fichier multimédia"
-
-#. Button tooltip
-#: src/ui/media-toc-player.ui:199
-msgid "Show / Hide chapters list"
-msgstr "Afficher / Cacher la liste chapitres"
-
-#: src/ui/media-toc-player.ui:239
-msgid "Title:"
-msgstr "Titre :"
-
-#: src/ui/media-toc-player.ui:251
-msgid "Artist:"
-msgstr "Artiste :"
-
-#: src/ui/media-toc-player.ui:263
-msgid "Container:"
-msgstr "Conteneur :"
-
-#: src/ui/media-toc-player.ui:275
-msgid "Video Codec:"
-msgstr "Codec Vidéo :"
-
-#: src/ui/media-toc-player.ui:287
-msgid "Audio Codec:"
-msgstr "Codec Audio :"
-
-#: src/ui/media-toc-player.ui:299
-msgid "Duration:"
-msgstr "Durée :"
-
-#: src/ui/media-toc-player.ui:491
-msgid "Info text"
-msgstr "Message d'information"
-
-#: src/ui/media-toc-player.ui:553
-msgid "display"
-msgstr "affichage"
-
-#: src/ui/media-toc-player.ui:569
-msgid "Video Streams"
-msgstr "Flux vidéos"
-
-#: src/ui/media-toc-player.ui:602
-msgid "Audio Streams"
-msgstr "Flux Audios"
-
-#: src/ui/media-toc-player.ui:635
-msgid "Text Streams"
-msgstr "Flux Textes"
-
-#: src/ui/media-toc-player.ui:665
-msgid "streams"
-msgstr "flux"
-
-#: src/ui/media-toc-player.ui:708
-msgid "00:00.000"
-msgstr "00:00.000"
-
-#. Button tooltip
-#: src/ui/media-toc-player.ui:735
-msgid "Play / Pause"
-msgstr "Jouer / Mettre en pause"
-
-#: src/ui/media-toc-player.ui:817
-msgid "Display"
-msgstr "Affichage"
-
-#: src/ui/media-toc-player.ui:862
-msgid "Streams"
-msgstr "Flux"
 
 #: src/ui/streams_controller.rs:243
 msgid "unknown"
@@ -278,12 +304,3 @@ msgstr "Canaux"
 #: src/ui/streams_controller.rs:396
 msgid "Format"
 msgstr "Format"
-
-#~ msgid "expected '=' in: {}"
-#~ msgstr "'=' attendu dans : {}"
-
-#~ msgid "unexpected format for: {}"
-#~ msgstr "format non reconnu pour : {}"
-
-#~ msgid "couldn't find chapter nb for: {}"
-#~ msgstr "impossible de trouver le n° de chapitre : {}"

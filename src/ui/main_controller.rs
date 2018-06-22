@@ -16,6 +16,8 @@ use gio::MenuExt;
 
 use gdk::{Cursor, CursorType, WindowExt};
 
+use application::CONFIG;
+
 use media::{ContextMessage, PlaybackContext};
 use media::ContextMessage::*;
 
@@ -62,7 +64,9 @@ pub struct MainController {
 
 impl MainController {
     pub fn new(gtk_app: &gtk::Application, is_gst_ok: bool) -> Rc<RefCell<Self>> {
-        let builder = gtk::Builder::new_from_string(include_str!("media-toc-player.ui"));
+        let builder = gtk::Builder::new_from_string(include_str!(
+            "../../assets/ui/media-toc-player.ui"
+        ));
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(gtk_app);
 
@@ -120,7 +124,20 @@ impl MainController {
             gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
             app_menu.append(&gettext("Quit")[..], "app.quit");
 
+            let this_rc = Rc::clone(&this);
+            this_mut.window.connect_delete_event(move |_, _| {
+                this_rc.borrow_mut().quit();
+                Inhibit(false)
+            });
+
             if is_gst_ok {
+                {
+                    let config = CONFIG.read().unwrap();
+                    if config.ui.width > 0 && config.ui.height > 0 {
+                        this_mut.window.resize(config.ui.width, config.ui.height);
+                    }
+                }
+
                 this_mut.video_ctrl.register_callbacks(&this);
                 PerspectiveController::register_callbacks(
                     &this_mut.perspective_ctrl,
@@ -205,6 +222,15 @@ impl MainController {
             context.stop();
         }
         self.remove_listener();
+
+        {
+            let size = self.window.get_size();
+            let mut config = CONFIG.write().unwrap();
+            config.ui.width = size.0;
+            config.ui.height = size.1;
+            config.save();
+        }
+
         self.window.destroy();
     }
 
@@ -298,15 +324,20 @@ impl MainController {
             context.pause().unwrap();
         };
 
-        let file_dlg = gtk::FileChooserDialog::new(
+        let file_dlg = gtk::FileChooserDialog::with_buttons(
             Some(&gettext("Open a media file")),
             Some(&self.window),
             gtk::FileChooserAction::Open,
+            &[
+                (&gettext("Cancel"), gtk::ResponseType::Cancel),
+                (&gettext("Open"), gtk::ResponseType::Accept),
+            ],
         );
-        // Note: couldn't find equivalents for STOCK_OK
-        file_dlg.add_button(&gettext("Open"), gtk::ResponseType::Ok.into());
+        if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
+            file_dlg.set_current_folder(last_path);
+        }
 
-        if file_dlg.run() == gtk::ResponseType::Ok.into() {
+        if file_dlg.run() == gtk::ResponseType::Accept.into() {
             if let Some(ref context) = self.context {
                 context.stop();
             }
@@ -501,8 +532,10 @@ impl MainController {
         self.keep_going = true;
         self.register_listener(LISTENER_PERIOD, ui_rx);
 
-        match PlaybackContext::new(filepath, ctx_tx) {
+        match PlaybackContext::new(filepath.clone(), ctx_tx) {
             Ok(context) => {
+                CONFIG.write().unwrap().media.last_path =
+                    filepath.parent().map(|path| path.to_owned());
                 self.context = Some(context);
             }
             Err(error) => {

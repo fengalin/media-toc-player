@@ -146,7 +146,10 @@ impl Reader for MKVMergeTextFormat {
                     Err(err) => {
                         let msg = if let nom::Err::Error(nom::Context::Code(i, code)) = err {
                             match code {
-                                nom::ErrorKind::ParseTo => {
+                                // FIXME: change `nom::ErrorKind::MapOpt` to
+                                // `nom::ErrorKind::ParseTo` when this PR is merged:
+                                // https://github.com/Geal/nom/pull/747
+                                nom::ErrorKind::MapOpt => {
                                     gettext("expecting a number, found: {}")
                                         .replacen("{}", &i[..i.len().min(2)], 1)
                                 }
