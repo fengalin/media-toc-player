@@ -237,6 +237,7 @@ impl MainController {
         dialog.set_logo_icon_name(APP_ID);
         dialog.set_comments(&gettext("A media player with a table of contents")[..]);
         dialog.set_copyright(&gettext("© 2017–2018 François Laignel")[..]);
+        dialog.set_translator_credits(&gettext("translator-credits")[..]);
         dialog.set_license_type(gtk::License::MitX11);
         dialog.set_version(env!("CARGO_PKG_VERSION"));
         dialog.set_website("https://github.com/fengalin/media-toc-player");
