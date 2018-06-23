@@ -1,6 +1,6 @@
 [package]
 name = "media-toc-player"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["François Laignel <fengalin@free.fr>"]
 keywords = ["multimedia", "player", "table-of-contents", "gtk3", "gstreamer"]
 repository = "https://github.com/fengalin/media-toc-player"
