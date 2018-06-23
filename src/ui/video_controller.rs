@@ -1,5 +1,5 @@
+use gdk;
 use gtk;
-
 use glib;
 use glib::ObjectExt;
 use glib::signal::SignalHandlerId;
@@ -30,9 +30,13 @@ impl VideoController {
     pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
         match PlaybackContext::get_video_widget() {
             Some(video_widget) => {
+                // discard GStreamer defined navigation events on widget
+                video_widget.set_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32);
+
                 self.container.pack_start(&video_widget, true, true, 0);
                 self.container.reorder_child(&video_widget, 0);
-
+                video_widget.show();
+                self.cleanup();
                 let main_ctrl_clone = Rc::clone(main_ctrl);
                 self.container
                     .connect_button_press_event(move |_, _event_button| {

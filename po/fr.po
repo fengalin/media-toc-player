@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2018-06-22 22:13+0200\n"
-"PO-Revision-Date: 2018-06-22 22:09+0200\n"
+"POT-Creation-Date: 2018-06-23 10:56+0200\n"
+"PO-Revision-Date: 2018-06-23 10:26+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
 "Language: fr\n"
@@ -94,7 +94,7 @@ msgstr "Affichage"
 msgid "Streams"
 msgstr "Flux"
 
-#: src/application/command_line.rs:13 src/ui/main_controller.rs:209
+#: src/application/command_line.rs:13 src/ui/main_controller.rs:238
 msgid "A media player with a table of contents"
 msgstr "Un lecteur multimédia muni d'une table des matières"
 
@@ -203,11 +203,11 @@ msgstr "Début"
 msgid "End"
 msgstr "Fin"
 
-#: src/ui/info_controller.rs:281
+#: src/ui/info_controller.rs:388
 msgid "No toc in file \"{}\""
 msgstr "Aucune table des matières dans le fichier «{}»"
 
-#: src/ui/info_controller.rs:293
+#: src/ui/info_controller.rs:400
 msgid ""
 "Error opening toc file \"{}\":\n"
 "{}"
@@ -215,11 +215,11 @@ msgstr ""
 "Erreur à l'ouverture du fichier «{}» :\n"
 "{}"
 
-#: src/ui/info_controller.rs:306
+#: src/ui/info_controller.rs:413
 msgid "Failed to open toc file."
 msgstr "Impossible d'ouvrir le fichier de table des matières."
 
-#: src/ui/main_controller.rs:106
+#: src/ui/main_controller.rs:103
 msgid "media-toc player"
 msgstr "lecteur media-toc"
 
@@ -231,37 +231,41 @@ msgstr "À propos"
 msgid "Quit"
 msgstr "Quitter"
 
-#: src/ui/main_controller.rs:189
+#: src/ui/main_controller.rs:176
+msgid "Open media file"
+msgstr "Ouvrir un fichier multimédia"
+
+#: src/ui/main_controller.rs:217
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr "Échec à l'initialisation de GStreamer, l'application est inutilisable."
 
-#: src/ui/main_controller.rs:210
+#: src/ui/main_controller.rs:239
 msgid "© 2017–2018 François Laignel"
 msgstr "© 2017–2018 François Laignel"
 
-#: src/ui/main_controller.rs:214
+#: src/ui/main_controller.rs:243
 msgid "Learn more about media-toc-player"
 msgstr "En apprendre plus sur media-toc-player"
 
-#: src/ui/main_controller.rs:328
+#: src/ui/main_controller.rs:361
 msgid "Open a media file"
 msgstr "Ouvrir un fichier multimédia"
 
-#: src/ui/main_controller.rs:332
+#: src/ui/main_controller.rs:365
 msgid "Cancel"
 msgstr "Annuler"
 
-#: src/ui/main_controller.rs:333
+#: src/ui/main_controller.rs:366
 msgid "Open"
 msgstr "Ouvrir"
 
-#: src/ui/main_controller.rs:383 src/ui/main_controller.rs:433
+#: src/ui/main_controller.rs:416 src/ui/main_controller.rs:466
 msgid "Missing plugin: {}"
 msgid_plural "Missing plugins: {}"
 msgstr[0] "Greffon manquant : {}"
 msgstr[1] "Greffons manquants : {}"
 
-#: src/ui/main_controller.rs:471 src/ui/main_controller.rs:543
+#: src/ui/main_controller.rs:504 src/ui/main_controller.rs:576
 msgid "Error opening file. {}"
 msgstr "Erreur à l'ouverture du fichier. {}"
 
