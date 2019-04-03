@@ -4,7 +4,9 @@ use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
 
-use metadata::{get_default_chapter_title, Timestamp, TocVisit, TocVisitor};
+use crate::metadata::{get_default_chapter_title, Timestamp, TocVisitor};
+
+use super::PositionStatus;
 
 const START_COL: u32 = 0;
 const END_COL: u32 = 1;
@@ -12,21 +14,23 @@ const TITLE_COL: u32 = 2;
 const START_STR_COL: u32 = 3;
 const END_STR_COL: u32 = 4;
 
-pub struct ChapterEntry<'a> {
-    store: &'a gtk::TreeStore,
-    iter: &'a gtk::TreeIter,
+pub struct ChapterEntry<'entry> {
+    store: &'entry gtk::TreeStore,
+    iter: &'entry gtk::TreeIter,
 }
 
-impl<'a> ChapterEntry<'a> {
-    pub fn new(store: &'a gtk::TreeStore, iter: &'a gtk::TreeIter) -> ChapterEntry<'a> {
-        ChapterEntry {
-            store,
-            iter,
-        }
+impl<'entry> ChapterEntry<'entry> {
+    pub fn new(store: &'entry gtk::TreeStore, iter: &'entry gtk::TreeIter) -> ChapterEntry<'entry> {
+        ChapterEntry { store, iter }
     }
 
     pub fn start(&self) -> u64 {
         ChapterEntry::get_start(self.store, self.iter)
+    }
+
+    #[allow(dead_code)]
+    pub fn end_ts(&self) -> Timestamp {
+        Timestamp::from_nano(ChapterEntry::get_end(self.store, self.iter))
     }
 
     pub fn get_start(store: &gtk::TreeStore, iter: &gtk::TreeIter) -> u64 {
@@ -48,7 +52,7 @@ pub struct ChapterTreeManager {
 }
 
 impl ChapterTreeManager {
-    pub fn new_from(store: gtk::TreeStore) -> Self {
+    pub fn new(store: gtk::TreeStore) -> Self {
         ChapterTreeManager {
             store,
             iter: None,
@@ -133,34 +137,32 @@ impl ChapterTreeManager {
             }
 
             // FIXME: handle hierarchical Tocs
-            while let Some(toc_visit) = toc_visitor.next() {
-                if let TocVisit::Node(chapter) = toc_visit {
-                    assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
+            while let Some(chapter) = toc_visitor.next_chapter() {
+                assert_eq!(gst::TocEntryType::Chapter, chapter.get_entry_type());
 
-                    if let Some((start, end)) = chapter.get_start_stop_times() {
-                        let start = start as u64;
-                        let end = end as u64;
+                if let Some((start, end)) = chapter.get_start_stop_times() {
+                    let start = start as u64;
+                    let end = end as u64;
 
-                        let title = chapter
-                            .get_tags()
-                            .and_then(|tags| {
-                                tags.get::<gst::tags::Title>()
-                                    .map(|tag| tag.get().unwrap().to_owned())
-                            })
-                            .unwrap_or_else(get_default_chapter_title);
-                        self.store.insert_with_values(
-                            None,
-                            None,
-                            &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
-                            &[
-                                &start,
-                                &end,
-                                &title,
-                                &format!("{}", &Timestamp::format(start, false)),
-                                &format!("{}", &Timestamp::format(end, false)),
-                            ],
-                        );
-                    }
+                    let title = chapter
+                        .get_tags()
+                        .and_then(|tags| {
+                            tags.get::<gst::tags::Title>()
+                                .and_then(|tag| tag.get().map(|value| value.to_string()))
+                        })
+                        .unwrap_or_else(get_default_chapter_title);
+                    self.store.insert_with_values(
+                        None,
+                        None,
+                        &[START_COL, END_COL, TITLE_COL, START_STR_COL, END_STR_COL],
+                        &[
+                            &start,
+                            &end,
+                            &title,
+                            &Timestamp::format(start, false),
+                            &Timestamp::format(end, false),
+                        ],
+                    );
                 }
             }
         }
@@ -185,7 +187,7 @@ impl ChapterTreeManager {
     // If first_iter is_some, iterate from first_iter
     pub fn for_each<F>(&self, first_iter: Option<gtk::TreeIter>, mut func: F)
     where
-        F: FnMut(ChapterEntry) -> bool, // closure must return true to keep going
+        F: FnMut(ChapterEntry<'_>) -> bool, // closure must return true to keep going
     {
         let iter = match first_iter {
             Some(first_iter) => first_iter,
@@ -199,21 +201,20 @@ impl ChapterTreeManager {
     }
 
     // Update chapter according to the given position
-    // Returns (has_changed, prev_selected_iter)
-    pub fn update_position(&mut self, position: u64) -> (bool, Option<gtk::TreeIter>) {
-        let has_changed = match self.selected_iter {
+    // Returns (position_status, prev_selected_iter)
+    pub fn update_position(&mut self, position: u64) -> (PositionStatus, Option<gtk::TreeIter>) {
+        let position_status = match self.selected_iter {
             Some(ref selected_iter) => {
                 if position >= ChapterEntry::get_start(&self.store, selected_iter)
                     && position < ChapterEntry::get_end(&self.store, selected_iter)
                 {
                     // regular case: position in current chapter => don't change anything
                     // this check is here to save time in the most frequent case
-                    return (false, None);
+                    return (PositionStatus::ChapterNotChanged, None);
                 }
-                // chapter has changed
-                true
+                PositionStatus::ChapterChanged
             }
-            None => false,
+            None => PositionStatus::ChapterNotChanged,
         };
 
         let prev_selected_iter = self.selected_iter.take();
@@ -227,7 +228,7 @@ impl ChapterTreeManager {
                 // position is in iter
                 self.selected_iter = Some(iter.clone());
                 self.iter = Some(iter);
-                return (true, prev_selected_iter);
+                return (PositionStatus::ChapterChanged, prev_selected_iter);
             } else if position >= ChapterEntry::get_end(&self.store, &iter) && searching_forward {
                 // position is after iter and we were already searching forward
                 self.store.iter_next(&iter)
@@ -235,17 +236,17 @@ impl ChapterTreeManager {
                 // position before iter
                 searching_forward = false;
                 if self.store.iter_previous(&iter) {
-                    // iter is still valid
+                    // iter is still valid => keep going
                     true
                 } else {
                     // before first chapter
                     self.iter = self.store.get_iter_first();
-                    return (has_changed, prev_selected_iter);
+                    return (position_status, prev_selected_iter);
                 }
             } else {
                 // in a gap between two chapters
                 self.iter = Some(iter);
-                return (has_changed, prev_selected_iter);
+                return (position_status, prev_selected_iter);
             } {}
 
             // passed the end of the last chapter
@@ -253,7 +254,7 @@ impl ChapterTreeManager {
             self.iter = None;
         }
 
-        (has_changed, prev_selected_iter)
+        (position_status, prev_selected_iter)
     }
 
     pub fn prepare_for_seek(&mut self) {

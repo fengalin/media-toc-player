@@ -8,9 +8,8 @@ pub struct CommandLineArguments {
     pub disable_gl: bool,
 }
 
-pub fn handle_command_line() -> CommandLineArguments {
-    let about_msg =
-        gettext("A media player with a table of contents");
+pub fn get_command_line() -> CommandLineArguments {
+    let about_msg = gettext("A media player with a table of contents");
     let help_msg = gettext("Display this message");
     let version_msg = gettext("Print version information");
 
@@ -23,12 +22,12 @@ pub fn handle_command_line() -> CommandLineArguments {
         .about(&about_msg[..])
         .help_message(&help_msg[..])
         .version_message(&version_msg[..])
-        /*.arg(
+        .arg(
             Arg::with_name(&disable_gl_arg[..])
                 .short("d")
                 .long("disable-gl")
                 .help(&gettext("Disable video rendering hardware acceleration")),
-        )*/
+        )
         .arg(
             Arg::with_name(&input_arg[..])
                 .help(&gettext("Path to the input media file"))

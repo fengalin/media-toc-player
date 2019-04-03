@@ -1,23 +1,20 @@
-use nom::types::CompleteStr;
+use nom::{
+    alt, do_parse, eof, flat_map, named, opt, parse_to, tag, take_while1, types::CompleteStr,
+};
 
 use std::fmt;
 
-named!(parse_digits<CompleteStr, u64>,
-    flat_map!(
-        take_while1!(|c| c >= '0' && c <= '9'),
-        parse_to!(u64)
-    )
+named!(
+    parse_digits<CompleteStr<'_>, u64>,
+    flat_map!(take_while1!(|c| c >= '0' && c <= '9'), parse_to!(u64))
 );
 
-named!(parse_opt_dot_digits<CompleteStr, Option<u64>>,
-    opt!(do_parse!(
-        tag!(".") >>
-        nb: parse_digits >>
-        (nb)
-    ))
+named!(
+    parse_opt_dot_digits<CompleteStr<'_>, Option<u64>>,
+    opt!(do_parse!(tag!(".") >> nb: parse_digits >> (nb)))
 );
 
-named!(pub parse_timestamp<CompleteStr, Timestamp>,
+named!(pub parse_timestamp<CompleteStr<'_>, Timestamp>,
     do_parse!(
         nb1: parse_digits >>
         tag!(":") >>
@@ -120,7 +117,7 @@ fn parse_string() {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Default)]
 pub struct Timestamp {
     pub nano_total: u64,
     pub nano: u64,
@@ -132,6 +129,23 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
+    pub fn from_nano(nano_total: u64) -> Self {
+        let us_total = nano_total / 1_000;
+        let ms_total = us_total / 1_000;
+        let s_total = ms_total / 1_000;
+        let m_total = s_total / 60;
+
+        Timestamp {
+            nano_total,
+            nano: nano_total % 1_000,
+            us: us_total % 1_000,
+            ms: ms_total % 1_000,
+            s: s_total % 60,
+            m: m_total % 60,
+            h: m_total / 60,
+        }
+    }
+
     pub fn format(nano_total: u64, with_micro: bool) -> String {
         let us_total = nano_total / 1_000;
         let ms_total = us_total / 1_000;
@@ -151,7 +165,8 @@ impl Timestamp {
                 s_total % 60,
                 ms_total % 1_000,
                 micro
-            ).to_owned()
+            )
+            .to_owned()
         } else {
             format!(
                 "{:02}:{:02}:{:02}.{:03}{}",
@@ -160,13 +175,14 @@ impl Timestamp {
                 s_total % 60,
                 ms_total % 1_000,
                 micro
-            ).to_owned()
+            )
+            .to_owned()
         }
     }
 }
 
 impl fmt::Display for Timestamp {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let prefix = if self.h > 0 {
             format!("{:02}:", self.h).to_owned()
         } else {
@@ -177,59 +193,8 @@ impl fmt::Display for Timestamp {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    //use env_logger;
-    use metadata::Timestamp;
-
-    #[test]
-    fn parse_string() {
-        //env_logger::try_init();
-
-        let ts = Timestamp::from_string("11:42:20.010");
-        assert!(ts.is_ok());
-        let ts = ts.unwrap();
-        assert_eq!(ts.h, 11);
-        assert_eq!(ts.m, 42);
-        assert_eq!(ts.s, 20);
-        assert_eq!(ts.ms, 10);
-        assert_eq!(ts.us, 0);
-        assert_eq!(ts.nano, 0);
-        assert_eq!(
-            ts.nano_total,
-            ((((11 * 60 + 42) * 60 + 20) * 1_000) + 10) * 1_000 * 1_000
-        );
-
-        let ts = Timestamp::from_string("42:20.010");
-        assert!(ts.is_ok());
-        let ts = ts.unwrap();
-        assert_eq!(ts.h, 0);
-        assert_eq!(ts.m, 42);
-        assert_eq!(ts.s, 20);
-        assert_eq!(ts.ms, 10);
-        assert_eq!(ts.us, 0);
-        assert_eq!(ts.nano, 0);
-        assert_eq!(
-            ts.nano_total,
-            (((42 * 60 + 20) * 1_000) + 10) * 1_000 * 1_000
-        );
-
-        let ts = Timestamp::from_string("42:20.010.015");
-        assert!(ts.is_ok());
-        let ts = ts.unwrap();
-        assert_eq!(ts.h, 0);
-        assert_eq!(ts.m, 42);
-        assert_eq!(ts.s, 20);
-        assert_eq!(ts.ms, 10);
-        assert_eq!(ts.us, 15);
-        assert_eq!(ts.nano, 0);
-        assert_eq!(
-            ts.nano_total,
-            ((((42 * 60 + 20) * 1_000) + 10) * 1_000 + 15) * 1_000
-        );
-
-        assert!(Timestamp::from_string("abc.015").is_err());
-        assert!(Timestamp::from_string("42:aa.015").is_err());
-        assert!(Timestamp::from_string("20:11:42:010.015").is_err());
+impl fmt::Debug for Timestamp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Timestamp").field(&self.to_string()).finish()
     }
 }

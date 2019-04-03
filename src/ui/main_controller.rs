@@ -1,74 +1,84 @@
+use gdk::{Cursor, CursorType, WindowExt};
 use gettextrs::{gettext, ngettext};
+
 use glib;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
-use gio;
-use gio::prelude::*;
-use gio::MenuExt;
-use gdk::{Cursor, CursorType, WindowExt};
 
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver};
+use log::{debug, error, info};
 
-use application::CONFIG;
-use media::{ContextMessage, PlaybackContext};
-use media::ContextMessage::*;
+use std::{cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
 
-use super::{APP_ID, InfoController, PerspectiveController, StreamsController, VideoController};
+use crate::{
+    application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG},
+    media::{MediaEvent, PlaybackPipeline, PlaybackState},
+};
+
+use super::{
+    InfoController, PerspectiveController, StreamsController, UIController, UIEvent, UIEventSender,
+    VideoController,
+};
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
 const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
-#[derive(Clone, PartialEq)]
+const TRACKER_PERIOD: u32 = 40; //  40 ms (25 Hz)
+
+#[derive(Debug, PartialEq)]
 pub enum ControllerState {
     EOS,
     Paused,
+    PendingSelectMedia,
+    PendingSelectMediaDecision,
     Playing,
+    Seeking,
     Stopped,
 }
 
-const LISTENER_PERIOD: u32 = 250; // 250 ms ( 4 Hz)
-const TRACKER_PERIOD: u32 = 40; //  40 ms (25 Hz)
-
 pub struct MainController {
-    window: gtk::ApplicationWindow,
+    pub(super) ui_event_receiver: Option<glib::Receiver<UIEvent>>,
+    ui_event_sender: UIEventSender,
+
+    pub(super) window: gtk::ApplicationWindow,
+
     header_bar: gtk::HeaderBar,
-    open_btn: gtk::Button,
-    play_pause_btn: gtk::ToolButton,
-    info_bar_revealer: gtk::Revealer,
-    info_bar: gtk::InfoBar,
+    pub(super) open_btn: gtk::Button,
+    pub(super) play_pause_btn: gtk::ToolButton,
+    pub(super) info_bar_revealer: gtk::Revealer,
+    pub(super) info_bar: gtk::InfoBar,
     info_bar_lbl: gtk::Label,
 
-    perspective_ctrl: Rc<RefCell<PerspectiveController>>,
-    video_ctrl: VideoController,
-    info_ctrl: Rc<RefCell<InfoController>>,
-    streams_ctrl: Rc<RefCell<StreamsController>>,
+    pub(super) perspective_ctrl: PerspectiveController,
+    pub(super) video_ctrl: VideoController,
+    pub(super) info_ctrl: InfoController,
+    pub(super) streams_ctrl: StreamsController,
 
-    context: Option<PlaybackContext>,
+    pub(super) pipeline: Option<PlaybackPipeline>,
     missing_plugins: HashSet<String>,
-    state: ControllerState,
-    seeking: bool,
+    pub(super) state: ControllerState,
 
-    this_opt: Option<Rc<RefCell<MainController>>>,
-    keep_going: bool,
-    listener_src: Option<glib::SourceId>,
+    pub(super) select_media_async: Option<Box<Fn()>>,
+    pub(super) media_event_handler: Option<Rc<Fn(MediaEvent) -> glib::Continue>>,
+    media_event_handler_src: Option<glib::SourceId>,
+
+    pub(super) tracker_fn: Option<Rc<Fn()>>,
     tracker_src: Option<glib::SourceId>,
 }
 
 impl MainController {
-    pub fn new(gtk_app: &gtk::Application, is_gst_ok: bool) -> Rc<RefCell<Self>> {
-        let builder = gtk::Builder::new_from_string(include_str!(
-            "../../assets/ui/media-toc-player.ui"
-        ));
-        let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
-        window.set_application(gtk_app);
+    pub fn new_rc() -> Rc<RefCell<Self>> {
+        let builder =
+            gtk::Builder::new_from_resource(&format!("{}/{}", *APP_PATH, "media-toc-player.ui"));
+        let (ui_event_sender, ui_event_receiver) =
+            glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        let ui_event_sender: UIEventSender = ui_event_sender.into();
 
-        let this = Rc::new(RefCell::new(MainController {
-            window,
+        Rc::new(RefCell::new(MainController {
+            ui_event_receiver: Some(ui_event_receiver),
+            ui_event_sender: ui_event_sender.clone(),
+
+            window: builder.get_object("application-window").unwrap(),
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
             play_pause_btn: builder.get_object("play_pause-toolbutton").unwrap(),
@@ -78,149 +88,42 @@ impl MainController {
 
             perspective_ctrl: PerspectiveController::new(&builder),
             video_ctrl: VideoController::new(&builder),
-            info_ctrl: InfoController::new(&builder),
+            info_ctrl: InfoController::new(&builder, ui_event_sender.clone()),
             streams_ctrl: StreamsController::new(&builder),
 
-            context: None,
+            pipeline: None,
             missing_plugins: HashSet::<String>::new(),
             state: ControllerState::Stopped,
-            seeking: false,
 
-            this_opt: None,
-            keep_going: true,
-            listener_src: None,
+            select_media_async: None,
+            media_event_handler: None,
+            media_event_handler_src: None,
+
+            tracker_fn: None,
             tracker_src: None,
-        }));
+        }))
+    }
 
-        {
-            let mut this_mut = this.borrow_mut();
-
-            let this_rc = Rc::clone(&this);
-            this_mut.this_opt = Some(this_rc);
-
-            this_mut
-                .header_bar
-                .set_title(gettext("media-toc player").as_str());
-
-            let app_menu = gio::Menu::new();
-            gtk_app.set_app_menu(&app_menu);
-
-            let app_section = gio::Menu::new();
-            app_menu.append_section(None, &app_section);
-
-            // Register About action
-            let about = gio::SimpleAction::new("about", None);
-            gtk_app.add_action(&about);
-            let this_rc = Rc::clone(&this);
-            about.connect_activate(move |_, _| this_rc.borrow().about());
-            gtk_app.set_accels_for_action("app.about", &["<Ctrl>A"]);
-            app_section.append(&gettext("About")[..], "app.about");
-
-            // Register Quit action
-            let quit = gio::SimpleAction::new("quit", None);
-            gtk_app.add_action(&quit);
-            let this_rc = Rc::clone(&this);
-            quit.connect_activate(move |_, _| this_rc.borrow_mut().quit());
-            gtk_app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
-            app_section.append(&gettext("Quit")[..], "app.quit");
-
-            let this_rc = Rc::clone(&this);
-            this_mut.window.connect_delete_event(move |_, _| {
-                this_rc.borrow_mut().quit();
-                Inhibit(false)
-            });
-
-            if is_gst_ok {
-                {
-                    let config = CONFIG.read().unwrap();
-                    if config.ui.width > 0 && config.ui.height > 0 {
-                        this_mut.window.resize(config.ui.width, config.ui.height);
-                    }
+    pub fn setup(&mut self, args: &CommandLineArguments) {
+        if gst::init().is_ok() {
+            {
+                let config = CONFIG.read().unwrap();
+                if config.ui.width > 0 && config.ui.height > 0 {
+                    self.window.resize(config.ui.width, config.ui.height);
                 }
 
-                this_mut.video_ctrl.register_callbacks(&this);
-                PerspectiveController::register_callbacks(
-                    &this_mut.perspective_ctrl,
-                    gtk_app,
-                    &this,
-                );
-                InfoController::register_callbacks(&this_mut.info_ctrl, gtk_app, &this);
-                StreamsController::register_callbacks(&this_mut.streams_ctrl, &this);
-
-                PlaybackContext::check_requirements()
-                    .err()
-                    .take()
-                    .map(|err| {
-                        error!("{}", err);
-                        let this_rc = Rc::clone(&this);
-                        gtk::idle_add(move || {
-                            this_rc
-                                .borrow()
-                                .show_message(gtk::MessageType::Warning, &err);
-                            glib::Continue(false)
-                        });
-                    });
-
-                let main_section = gio::Menu::new();
-                app_menu.insert_section(0, None, &main_section);
-
-                // Register Open action
-                let open = gio::SimpleAction::new("open", None);
-                gtk_app.add_action(&open);
-                let this_rc = Rc::clone(&this);
-                open.connect_activate(move |_, _| {
-                    let mut this = this_rc.borrow_mut();
-                    this.select_media();
-                });
-                gtk_app.set_accels_for_action("app.open", &["<Ctrl>O"]);
-                main_section.append(&gettext("Open media file")[..], "app.open");
-
-                this_mut.open_btn.set_sensitive(true);
-
-                // Register Play/Pause action
-                let play_pause = gio::SimpleAction::new("play_pause", None);
-                gtk_app.add_action(&play_pause);
-                let this_rc = Rc::clone(&this);
-                play_pause.connect_activate(move |_, _| {
-                    this_rc.borrow_mut().play_pause();
-                });
-                gtk_app.set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
-
-                this_mut.play_pause_btn.set_sensitive(true);
-
-                // Register Close info bar action
-                let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
-                gtk_app.add_action(&close_info_bar);
-                let revealer = this_mut.info_bar_revealer.clone();
-                close_info_bar.connect_activate(move |_, _| revealer.set_reveal_child(false));
-                gtk_app.set_accels_for_action("app.close_info_bar", &["Escape"]);
-
-                let revealer = this_mut.info_bar_revealer.clone();
-                this_mut
-                    .info_bar
-                    .connect_response(move |_, _| revealer.set_reveal_child(false));
-            } else {
-                // GStreamer initialization failed
-
-                // Register Close info bar action
-                let close_info_bar = gio::SimpleAction::new("close_info_bar", None);
-                gtk_app.add_action(&close_info_bar);
-                let this_rc = Rc::clone(&this);
-                close_info_bar.connect_activate(move |_, _| this_rc.borrow_mut().quit());
-                gtk_app.set_accels_for_action("app.close_info_bar", &["Escape"]);
-
-                let this_rc = Rc::clone(&this);
-                this_mut
-                    .info_bar
-                    .connect_response(move |_, _| this_rc.borrow_mut().quit());
-
-                let msg = gettext("Failed to initialize GStreamer, the application can't be used.");
-                this_mut.show_message(gtk::MessageType::Error, &msg);
-                error!("{}", msg);
+                self.open_btn.set_sensitive(true);
             }
-        }
 
-        this
+            self.perspective_ctrl.setup(&args);
+            self.video_ctrl.setup(&args);
+            self.info_ctrl.setup(&args);
+            self.streams_ctrl.setup(&args);
+        }
+    }
+
+    pub fn get_ui_event_sender(&self) -> UIEventSender {
+        self.ui_event_sender.clone()
     }
 
     pub fn show_all(&self) {
@@ -228,30 +131,31 @@ impl MainController {
         self.window.activate();
     }
 
-    fn about(&self) {
+    pub fn about(&self) {
         let dialog = gtk::AboutDialog::new();
         dialog.set_modal(true);
-        dialog.set_transient_for(&self.window);
+        dialog.set_transient_for(Some(&self.window));
 
-        dialog.set_program_name("media-toc-player");
-        dialog.set_logo_icon_name(APP_ID);
-        dialog.set_comments(&gettext("A media player with a table of contents")[..]);
-        dialog.set_copyright(&gettext("© 2017–2018 François Laignel")[..]);
-        dialog.set_translator_credits(&gettext("translator-credits")[..]);
+        dialog.set_program_name(env!("CARGO_PKG_NAME"));
+        dialog.set_logo_icon_name(Some(&APP_ID));
+        dialog.set_comments(Some(&gettext("A media player with a table of contents")));
+        dialog.set_copyright(Some(&gettext("© 2017–2019 François Laignel")));
+        dialog.set_translator_credits(Some(&gettext("translator-credits")));
         dialog.set_license_type(gtk::License::MitX11);
-        dialog.set_version(env!("CARGO_PKG_VERSION"));
-        dialog.set_website("https://github.com/fengalin/media-toc-player");
-        dialog.set_website_label(&gettext("Learn more about media-toc-player")[..]);
+        dialog.set_version(Some(env!("CARGO_PKG_VERSION")));
+        dialog.set_website(Some(env!("CARGO_PKG_HOMEPAGE")));
+        dialog.set_website_label(Some(&gettext("Learn more about media-toc-player")));
 
+        dialog.connect_response(|dialog, _| dialog.close());
         dialog.show();
     }
 
-    fn quit(&mut self) {
-        self.remove_tracker();
-        if let Some(context) = self.context.take() {
-            context.stop();
+    pub fn quit(&mut self) {
+        if let Some(pipeline) = self.pipeline.take() {
+            pipeline.stop();
         }
-        self.remove_listener();
+        self.remove_media_event_handler();
+        self.remove_tracker();
 
         {
             let size = self.window.get_size();
@@ -264,15 +168,25 @@ impl MainController {
         self.window.destroy();
     }
 
-    pub fn show_message(&self, type_: gtk::MessageType, message: &str) {
+    pub fn show_message<Msg: AsRef<str>>(&mut self, type_: gtk::MessageType, message: Msg) {
         self.info_bar.set_message_type(type_);
-        self.info_bar_lbl.set_label(message);
+        self.info_bar_lbl.set_label(message.as_ref());
         self.info_bar_revealer.set_reveal_child(true);
     }
 
+    pub fn show_error<Msg: AsRef<str>>(&mut self, message: Msg) {
+        error!("{}", message.as_ref());
+        self.show_message(gtk::MessageType::Error, message);
+    }
+
+    pub fn show_info<Msg: AsRef<str>>(&mut self, message: Msg) {
+        info!("{}", message.as_ref());
+        self.show_message(gtk::MessageType::Info, message);
+    }
+
     pub fn play_pause(&mut self) {
-        let context = match self.context.take() {
-            Some(context) => context,
+        let pipeline_state = match &self.pipeline {
+            Some(pipeline) => pipeline.get_state(),
             None => {
                 self.select_media();
                 return;
@@ -280,125 +194,68 @@ impl MainController {
         };
 
         if self.state != ControllerState::EOS {
-            match context.get_state() {
+            match pipeline_state {
                 gst::State::Paused => {
-                    self.register_tracker();
-                    self.play_pause_btn.set_icon_name(PAUSE_ICON);
+                    self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
                     self.state = ControllerState::Playing;
-                    context.play().unwrap();
-                    self.context = Some(context);
+                    self.register_tracker();
+                    self.pipeline.as_mut().unwrap().play().unwrap();
                 }
                 gst::State::Playing => {
-                    context.pause().unwrap();
-                    self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
+                    self.pipeline.as_mut().unwrap().pause().unwrap();
+                    self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
                     self.remove_tracker();
                     self.state = ControllerState::Paused;
-                    self.context = Some(context);
                 }
-                state => {
-                    warn!("Can't play/pause in state {:?}", state);
-                    self.context = Some(context);
+                _ => {
+                    self.select_media();
                 }
             };
         } else {
             // Restart the stream from the begining
-            self.context = Some(context);
-            self.seek(0, true); // accurate (slow)
+            self.seek(0, gst::SeekFlags::ACCURATE);
         }
     }
 
-    pub fn seek(&mut self, position: u64, accurate: bool) {
-        if self.state != ControllerState::Stopped {
-            self.seeking = true;
-
-            if self.state == ControllerState::Playing || self.state == ControllerState::Paused {
-                self.info_ctrl.borrow_mut().seek(position, &self.state);
-            }
-
-            self.context.as_ref().unwrap().seek(position, accurate);
-
-            if self.state == ControllerState::EOS {
-                self.register_tracker();
-                self.play_pause_btn.set_icon_name(PAUSE_ICON);
-                self.state = ControllerState::Playing;
-            }
+    pub fn seek(&mut self, position: u64, flags: gst::SeekFlags) {
+        self.info_ctrl.seek(position, &self.state);
+        if self.state == ControllerState::EOS {
+            self.register_tracker();
         }
+        self.state = ControllerState::Seeking;
+        self.pipeline.as_ref().unwrap().seek(position, flags);
     }
 
     pub fn get_position(&mut self) -> u64 {
-        self.context.as_mut().unwrap().get_position()
+        self.pipeline.as_mut().unwrap().get_position()
     }
 
-    pub fn select_streams(&mut self, stream_ids: &[String]) {
-        self.context.as_ref().unwrap().select_streams(stream_ids);
+    pub fn select_streams(&mut self, stream_ids: &[Arc<str>]) {
+        self.pipeline.as_ref().unwrap().select_streams(stream_ids);
+        // In Playing state, wait for the notification from the pipeline
+        // Otherwise, update immediately
+        if self.state != ControllerState::Playing {
+            self.streams_selected();
+        }
     }
 
-    fn switch_to_busy(&mut self) {
-        self.window.set_sensitive(false);
-
-        let gdk_window = self.window.get_window().unwrap();
-        gdk_window.set_cursor(&Cursor::new_for_display(
-            &gdk_window.get_display(),
-            CursorType::Watch,
-        ));
+    pub fn streams_selected(&mut self) {
+        let info = self.pipeline.as_ref().unwrap().info.read().unwrap();
+        self.info_ctrl.streams_changed(&info);
+        self.perspective_ctrl.streams_changed(&info);
+        self.video_ctrl.streams_changed(&info);
     }
 
-    fn switch_to_default(&mut self) {
-        self.window.get_window().unwrap().set_cursor(None);
-        self.window.set_sensitive(true);
-    }
+    pub fn hold(&mut self) {
+        self.set_cursor_waiting();
+        self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
 
-    fn select_media(&mut self) {
-        self.info_bar_revealer.set_reveal_child(false);
-        self.switch_to_busy();
-        self.remove_tracker();
-        self.play_pause_btn.set_icon_name(PLAYBACK_ICON);
-
-        if let Some(context) = self.context.as_mut() {
-            context.pause().unwrap();
+        if let Some(pipeline) = self.pipeline.as_mut() {
+            pipeline.pause().unwrap();
         };
-
-        let file_dlg = gtk::FileChooserDialog::with_buttons(
-            Some(&gettext("Open a media file")),
-            Some(&self.window),
-            gtk::FileChooserAction::Open,
-            &[
-                (&gettext("Cancel"), gtk::ResponseType::Cancel),
-                (&gettext("Open"), gtk::ResponseType::Accept),
-            ],
-        );
-        if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
-            file_dlg.set_current_folder(last_path);
-        }
-
-        if file_dlg.run() == gtk::ResponseType::Accept.into() {
-            if let Some(ref context) = self.context {
-                context.stop();
-            }
-            self.open_media(file_dlg.get_filename().unwrap());
-        } else {
-            if self.context.is_some() {
-                self.state = ControllerState::Paused;
-            }
-            self.switch_to_default();
-        }
-
-        file_dlg.close();
     }
 
-    pub fn set_context(&mut self, context: PlaybackContext) {
-        self.context = Some(context);
-        self.state = ControllerState::Paused;
-        self.switch_to_default();
-    }
-
-    fn remove_listener(&mut self) {
-        if let Some(source_id) = self.listener_src.take() {
-            glib::source_remove(source_id);
-        }
-    }
-
-    fn handle_missing_plugins(&self) -> bool {
+    fn check_missing_plugins(&self) -> Option<String> {
         if !self.missing_plugins.is_empty() {
             let mut missing_nb = 0;
             let mut missing_list = String::new();
@@ -411,117 +268,129 @@ impl MainController {
                 missing_list += missing_plugin;
                 missing_nb += 1;
             });
+            let message = ngettext("Missing plugin: {}", "Missing plugins: {}", missing_nb)
+                .replacen("{}", &missing_list, 1);
 
-            let message = format!("{}",
-                ngettext(
-                    "Missing plugin: {}",
-                    "Missing plugins: {}",
-                    missing_nb
-                ).replacen("{}", &missing_list, 1),
-            );
-            self.show_message(gtk::MessageType::Info, &message);
-            error!("{}", message);
-
-            true
+            Some(message)
         } else {
-            false
+            None
         }
     }
 
-    fn register_listener(&mut self, timeout: u32, ui_rx: Receiver<ContextMessage>) {
-        if self.listener_src.is_some() {
-            return;
+    #[allow(clippy::redundant_closure)]
+    fn attach_media_event_handler(&mut self, receiver: glib::Receiver<MediaEvent>) {
+        let media_event_handler = Rc::clone(self.media_event_handler.as_ref().unwrap());
+        self.media_event_handler_src =
+            Some(receiver.attach(None, move |event| media_event_handler(event)));
+    }
+
+    fn remove_media_event_handler(&mut self) {
+        if let Some(source_id) = self.media_event_handler_src.take() {
+            glib::source_remove(source_id);
         }
+    }
 
-        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
+    pub fn handle_media_event(&mut self, event: MediaEvent) -> glib::Continue {
+        let mut keep_going = true;
 
-        self.listener_src = Some(gtk::timeout_add(timeout, move || {
-            let mut keep_going = true;
-
-            for message in ui_rx.try_iter() {
-                match message {
-                    AsyncDone => {
-                        if let Ok(mut this) = this_rc.try_borrow_mut() {
-                            this.seeking = false;
-                        }
-                    }
-                    InitDone => {
-                        let mut this = this_rc.borrow_mut();
-
-                        let context = this.context.take().unwrap();
-                        this.header_bar
-                            .set_subtitle(Some(context.file_name.as_str()));
-                        this.perspective_ctrl.borrow().new_media();
-                        this.streams_ctrl.borrow_mut().new_media(&context);
-                        this.info_ctrl.borrow_mut().new_media(&context);
-                        this.video_ctrl.new_media(&context);
-
-                        this.register_tracker();
-                        this.play_pause_btn.set_icon_name(PAUSE_ICON);
-                        this.set_context(context);
-
-                        this.handle_missing_plugins();
-                        this.state = ControllerState::Playing;
-                    }
-                    MissingPlugin(plugin) => {
-                        error!("{}", gettext("Missing plugin: {}").replacen("{}", &plugin, 1));
-                        this_rc.borrow_mut().missing_plugins.insert(plugin);
-                    }
-                    Eos => {
-                        let mut this = this_rc.borrow_mut();
-                        let position = this.context.as_mut().unwrap().get_position();
-                        this.info_ctrl.borrow_mut().tick(position, true);
-
-                        this.play_pause_btn.set_icon_name(PLAYBACK_ICON);
-                        this.state = ControllerState::EOS;
-
-                        // The tracker will be register again in case of a seek
-                        this.remove_tracker();
-                    }
-                    StreamsSelected => {
-                        let mut this = this_rc.borrow_mut();
-                        let mut context = this.context.take().unwrap();
-                        {
-                            let info = context.info.read().unwrap();
-                            this.info_ctrl.borrow().streams_changed(&info);
-                        }
-                        this.set_context(context);
-                    }
-                    FailedToOpenMedia(error) => {
-                        let mut this = this_rc.borrow_mut();
-                        this.context = None;
-                        this.state = ControllerState::Stopped;
-                        this.switch_to_default();
-
-                        this.show_message(gtk::MessageType::Error, &error);
-
-                        this.keep_going = false;
-                        keep_going = false;
-
-
-                        if !this.missing_plugins.is_empty() {
-                            this.handle_missing_plugins();
-                        } else {
-                            let error = gettext("Error opening file. {}").replacen("{}", &error, 1);
-                            this.show_message(gtk::MessageType::Error, &error);
-                            error!("{}", error);
-                        }
-                    }
-                };
-
-                if !keep_going {
-                    break;
+        match event {
+            MediaEvent::AsyncDone(playback_state) => {
+                if let ControllerState::Seeking = self.state {
+                    self.state = match playback_state {
+                        PlaybackState::Playing => ControllerState::Playing,
+                        PlaybackState::Paused => ControllerState::Paused,
+                    };
                 }
             }
+            MediaEvent::InitDone => {
+                debug!("received `InitDone`");
+                {
+                    let pipeline = self.pipeline.as_ref().unwrap();
 
-            if !keep_going {
-                let mut this = this_rc.borrow_mut();
-                this.listener_src = None;
-                this.tracker_src = None;
+                    self.header_bar
+                        .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
+
+                    self.info_ctrl.new_media(&pipeline);
+                    self.perspective_ctrl.new_media(&pipeline);
+                    self.streams_ctrl.new_media(&pipeline);
+                    self.video_ctrl.new_media(&pipeline);
+                }
+
+                self.streams_selected();
+
+                if let Some(message) = self.check_missing_plugins() {
+                    self.show_error(message);
+                }
+
+                self.reset_cursor();
+                self.state = ControllerState::Paused;
             }
+            MediaEvent::MissingPlugin(plugin) => {
+                error!(
+                    "{}",
+                    gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
+                );
+                self.missing_plugins.insert(plugin);
+            }
+            MediaEvent::ReadyForRefresh => match &self.state {
+                ControllerState::Playing => (),
+                ControllerState::Paused => (),
+                ControllerState::PendingSelectMedia => {
+                    self.select_media();
+                }
+                _ => (),
+            },
+            MediaEvent::StreamsSelected => self.streams_selected(),
+            MediaEvent::Eos => {
+                self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
+                // The tracker will be register again in case of a seek
+                self.remove_tracker();
+                self.state = ControllerState::EOS;
+            }
+            MediaEvent::FailedToOpenMedia(error) => {
+                self.pipeline = None;
+                self.state = ControllerState::Stopped;
+                self.reset_cursor();
 
-            glib::Continue(keep_going)
-        }));
+                keep_going = false;
+
+                let mut error = gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
+                if let Some(message) = self.check_missing_plugins() {
+                    error += "\n\n";
+                    error += &message;
+                }
+                self.show_error(error);
+            }
+        }
+
+        if !keep_going {
+            self.remove_media_event_handler();
+            self.remove_tracker();
+        }
+
+        glib::Continue(keep_going)
+    }
+
+    pub fn set_cursor_waiting(&self) {
+        if let Some(gdk_window) = self.window.get_window() {
+            gdk_window.set_cursor(Some(&Cursor::new_for_display(
+                &gdk_window.get_display(),
+                CursorType::Watch,
+            )));
+        }
+    }
+
+    fn reset_cursor(&self) {
+        if let Some(gdk_window) = self.window.get_window() {
+            gdk_window.set_cursor(None);
+        }
+    }
+
+    pub fn select_media(&mut self) {
+        self.info_bar_revealer.set_reveal_child(false);
+        self.remove_tracker();
+        self.state = ControllerState::PendingSelectMediaDecision;
+        self.select_media_async.as_ref().unwrap()();
     }
 
     fn remove_tracker(&mut self) {
@@ -535,49 +404,56 @@ impl MainController {
             return;
         }
 
-        let this_rc = Rc::clone(self.this_opt.as_ref().unwrap());
-
+        let tracker_fn = Rc::clone(self.tracker_fn.as_ref().unwrap());
         self.tracker_src = Some(gtk::timeout_add(TRACKER_PERIOD, move || {
-            let mut this = this_rc.borrow_mut();
-
-            if !this.seeking {
-                let position = this.context.as_mut().unwrap().get_position();
-                this.info_ctrl.borrow_mut().tick(position, false);
-            }
-
-            glib::Continue(this.keep_going)
+            tracker_fn();
+            glib::Continue(true)
         }));
     }
 
-    pub fn open_media(&mut self, filepath: PathBuf) {
-        self.remove_listener();
+    pub fn open_media(&mut self, path: PathBuf) {
+        if let Some(pipeline) = self.pipeline.take() {
+            pipeline.stop();
+        }
 
+        self.remove_media_event_handler();
+
+        self.info_ctrl.cleanup();
         self.video_ctrl.cleanup();
-        self.info_ctrl.borrow_mut().cleanup();
-        self.streams_ctrl.borrow_mut().cleanup();
-        self.perspective_ctrl.borrow().cleanup();
-        self.header_bar.set_subtitle("");
+        self.streams_ctrl.cleanup();
+        self.perspective_ctrl.cleanup();
+        self.header_bar.set_subtitle(Some(""));
 
-        let (ctx_tx, ui_rx) = channel();
+        let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
         self.state = ControllerState::Stopped;
         self.missing_plugins.clear();
-        self.seeking = false;
-        self.keep_going = true;
-        self.register_listener(LISTENER_PERIOD, ui_rx);
+        self.attach_media_event_handler(receiver);
 
-        match PlaybackContext::new(filepath.clone(), ctx_tx) {
-            Ok(context) => {
+        match PlaybackPipeline::try_new(path.as_ref(), &self.video_ctrl.get_video_sink(), sender) {
+            Ok(pipeline) => {
                 CONFIG.write().unwrap().media.last_path =
-                    filepath.parent().map(|path| path.to_owned());
-                self.context = Some(context);
+                    path.parent().map(|parent_path| parent_path.to_owned());
+                self.pipeline = Some(pipeline);
             }
             Err(error) => {
-                self.switch_to_default();
-                let error = gettext("Error opening file. {}").replace("{}", &error);
-                self.show_message(gtk::MessageType::Error, &error);
-                error!("{}", error);
+                self.reset_cursor();
+                let error = gettext("Error opening file.\n\n{}").replace("{}", &error);
+                self.show_error(error);
             }
         };
+    }
+
+    pub fn cancel_select_media(&mut self) {
+        self.reset_cursor();
+        match &self.state {
+            ControllerState::PendingSelectMediaDecision => {
+                self.state = self
+                    .pipeline
+                    .as_ref()
+                    .map_or(ControllerState::Stopped, |_| ControllerState::Paused);
+            }
+            other => panic!("Called `cancel_select_media()` in state {:?}", other),
+        }
     }
 }

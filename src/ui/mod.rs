@@ -1,22 +1,222 @@
-pub const APP_ID: &str = "org.fengalin.media-toc-player";
-
-mod info_controller;
-use self::info_controller::InfoController;
-
-mod image_surface;
-use self::image_surface::ImageSurface;
-
-pub mod main_controller;
-pub use self::main_controller::{ControllerState, MainController};
+use std::{cell::RefCell, rc::Rc};
 
 mod chapter_tree_manager;
 use self::chapter_tree_manager::ChapterTreeManager;
 
+mod image;
+use self::image::Image;
+
+mod info_controller;
+use self::info_controller::InfoController;
+mod info_dispatcher;
+use self::info_dispatcher::InfoDispatcher;
+
+pub mod main_controller;
+pub use self::main_controller::{ControllerState, MainController};
+pub mod main_dispatcher;
+pub use self::main_dispatcher::MainDispatcher;
+
 mod perspective_controller;
 use self::perspective_controller::PerspectiveController;
+mod perspective_dispatcher;
+use self::perspective_dispatcher::PerspectiveDispatcher;
 
 mod streams_controller;
 use self::streams_controller::StreamsController;
+mod streams_dispatcher;
+use self::streams_dispatcher::StreamsDispatcher;
+
+mod ui_event;
+use self::ui_event::{UIEvent, UIEventSender};
 
 mod video_controller;
 use self::video_controller::VideoController;
+mod video_dispatcher;
+use self::video_dispatcher::VideoDispatcher;
+
+#[derive(PartialEq)]
+pub enum PositionStatus {
+    ChapterChanged,
+    ChapterNotChanged,
+}
+
+use crate::application::CommandLineArguments;
+
+pub trait UIController {
+    fn setup(&mut self, _args: &CommandLineArguments) {}
+    fn new_media(&mut self, _pipeline: &super::media::PlaybackPipeline) {}
+    fn cleanup(&mut self);
+    fn streams_changed(&mut self, _info: &super::metadata::MediaInfo) {}
+}
+
+pub trait UIDispatcher {
+    fn setup(gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>);
+}
+
+/// This macro allows declaring a closure which will borrow the specified `main_ctrl_rc`
+/// The following variantes are available:
+///
+/// - Borrow as immutable
+/// ```
+/// with_main_ctrl!(
+///     main_ctrl_rc => |&main_ctrl| main_ctrl.about()
+/// )
+/// ```
+///
+/// - Borrow as mutable
+/// ```
+/// with_main_ctrl!(
+///     main_ctrl_rc => |&mut main_ctrl| main_ctrl.quit()
+/// )
+/// ```
+///
+/// - Borrow as mutable with argument(s) (also available as immutable)
+/// ```
+/// with_main_ctrl!(
+///     main_ctrl_rc => |&mut main_ctrl, event| main_ctrl.handle_media_event(event)
+/// )
+/// ```
+///
+/// - Try to borrow as mutable (also available with argument(s)). The body will not be called if
+/// the borrow attempt fails.
+/// ```
+/// with_main_ctrl!(
+///     main_ctrl_rc => try |&mut main_ctrl| main_ctrl.about()
+/// )
+/// ```
+///
+/// - Borrow as mutable and trigger asynchronously (also available as immutable and with argument(s))
+/// ```
+/// with_main_ctrl!(
+///     main_ctrl_rc => async |&mut main_ctrl| main_ctrl.about()
+/// )
+/// ```
+#[macro_export]
+macro_rules! with_main_ctrl {
+    (@param _) => ( _ );
+    (@param $x:ident) => ( $x );
+    ($main_ctrl_rc:ident => move |&$main_ctrl:ident| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move || {
+                let $main_ctrl = main_ctrl_rc.borrow();
+                $body
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move |$(with_main_ctrl!(@param $p),)+| {
+                let $main_ctrl = main_ctrl_rc.borrow();
+                $body
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => try move |&$main_ctrl:ident| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move || {
+                if let Ok($main_ctrl) = main_ctrl_rc.try_borrow() {
+                    $body
+                }
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => try move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move |$(with_main_ctrl!(@param $p),)+| {
+                if let Ok($main_ctrl) = main_ctrl_rc.try_borrow() {
+                    $body
+                }
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => async move |&$main_ctrl:ident| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move || {
+                let main_ctrl_rc_idle = Rc::clone(&main_ctrl_rc);
+                gtk::idle_add(move || {
+                    let $main_ctrl = main_ctrl_rc_idle.borrow();
+                    $body
+                })
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => async move |&$main_ctrl:ident, $($p:tt),+| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move |$(with_main_ctrl!(@param $p),)+| {
+                let main_ctrl_rc_idle = Rc::clone(&main_ctrl_rc);
+                gtk::idle_add(move |$(with_main_ctrl!(@param $p),)+| {
+                    let $main_ctrl = main_ctrl_rc_idle.borrow();
+                    $body
+                })
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => move |&mut $main_ctrl:ident| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move || {
+                let mut $main_ctrl = main_ctrl_rc.borrow_mut();
+                $body
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => move |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move |$(with_main_ctrl!(@param $p),)+| {
+                let mut $main_ctrl = main_ctrl_rc.borrow_mut();
+                $body
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => try move |&mut $main_ctrl:ident| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move || {
+                if let Ok(mut $main_ctrl) = main_ctrl_rc.try_borrow_mut() {
+                    $body
+                }
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => try move |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move |$(with_main_ctrl!(@param $p),)+| {
+                if let Ok(mut $main_ctrl) = main_ctrl_rc.try_borrow_mut() {
+                    $body
+                }
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => async move |&mut $main_ctrl:ident| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move || {
+                let main_ctrl_rc_idle = Rc::clone(&main_ctrl_rc);
+                gtk::idle_add(move || {
+                    let mut $main_ctrl = main_ctrl_rc_idle.borrow_mut();
+                    $body
+                })
+            }
+        }
+    );
+    ($main_ctrl_rc:ident => async move |&mut $main_ctrl:ident, $($p:tt),+| $body:expr) => (
+        {
+            let main_ctrl_rc = Rc::clone(&$main_ctrl_rc);
+            move |$(with_main_ctrl!(@param $p),)+| {
+                let main_ctrl_rc_idle = Rc::clone(&main_ctrl_rc);
+                gtk::idle_add(move |$(with_main_ctrl!(@param $p),)+| {
+                    let mut $main_ctrl = main_ctrl_rc_idle.borrow_mut();
+                    $body
+                })
+            }
+        }
+    );
+}

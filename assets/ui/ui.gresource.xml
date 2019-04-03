@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/org/fengalin/media-toc-player">
+    <file preprocess="xml-stripblanks">media-toc-player.ui</file>
+  </gresource>
+</gresources>

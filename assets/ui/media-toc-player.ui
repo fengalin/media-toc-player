@@ -128,6 +128,7 @@ Author: François Laignel
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="tooltip_text" translatable="yes" comments="Button tooltip">Perspective selector</property>
+            <property name="popover">perspective-popovermenu</property>
             <child>
               <object class="GtkBox" id="perspective-menu-btn-image-box">
                 <property name="visible">True</property>
@@ -168,6 +169,7 @@ Author: François Laignel
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
             <property name="tooltip_text" translatable="yes" comments="Button tooltip">Open media</property>
+            <property name="action_name">app.open</property>
             <child>
               <object class="GtkImage">
                 <property name="visible">True</property>

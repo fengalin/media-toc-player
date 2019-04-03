@@ -274,8 +274,7 @@ msgstr[1] "No se encontraron los plugins: {}"
 
 #: src/ui/main_controller.rs:505 src/ui/main_controller.rs:577
 msgid "Error opening file. {}"
-msgstr ""
-"Error al abrir el archivo. {}"
+msgstr "Error al abrir el archivo. {}"
 
 #: src/ui/streams_controller.rs:243
 msgid "unknown"

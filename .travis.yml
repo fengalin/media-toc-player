@@ -7,7 +7,7 @@ matrix:
   include:
     - os: linux
       rust: stable
-      dist: trusty
+      dist: xenial
     - os: osx
       rust: stable
 

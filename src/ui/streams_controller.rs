@@ -1,24 +1,20 @@
 use gettextrs::gettext;
-use glib;
 use gstreamer as gst;
 
 use gtk;
 use gtk::prelude::*;
 
-use std::rc::{Rc, Weak};
-use std::cell::RefCell;
+use std::sync::Arc;
 
-use media::PlaybackContext;
+use crate::{application::CommandLineArguments, media::PlaybackPipeline, metadata::Stream};
 
-use metadata::Stream;
-
-use super::MainController;
+use super::UIController;
 
 const ALIGN_LEFT: f32 = 0f32;
 const ALIGN_CENTER: f32 = 0.5f32;
 const ALIGN_RIGHT: f32 = 1f32;
 
-const STREAM_ID_COL: u32 = 0;
+pub(super) const STREAM_ID_COL: u32 = 0;
 const STREAM_ID_DISPLAY_COL: u32 = 1;
 const LANGUAGE_COL: u32 = 2;
 const CODEC_COL: u32 = 3;
@@ -32,48 +28,125 @@ const AUDIO_CHANNELS_COL: u32 = 6;
 
 const TEXT_FORMAT_COL: u32 = 5;
 
-macro_rules! on_stream_selected(
-    ($this:expr, $store:expr, $tree_path:expr, $selected:expr) => {
-        if let Some(iter) = $store.get_iter($tree_path) {
-            let stream = $this.get_stream_at(&$store, &iter);
-            let stream_to_select = match $selected.as_ref() {
-                Some(stream_id) => {
-                    if stream_id != &stream {
-                        // Stream has changed
-                        Some(stream)
-                    } else {
-                        None
-                    }
+pub struct StreamsController {
+    pub(super) video_treeview: gtk::TreeView,
+    pub(super) video_store: gtk::ListStore,
+    pub(super) video_selected: Option<Arc<str>>,
+
+    pub(super) audio_treeview: gtk::TreeView,
+    pub(super) audio_store: gtk::ListStore,
+    pub(super) audio_selected: Option<Arc<str>>,
+
+    pub(super) text_treeview: gtk::TreeView,
+    pub(super) text_store: gtk::ListStore,
+    pub(super) text_selected: Option<Arc<str>>,
+}
+
+impl UIController for StreamsController {
+    fn setup(&mut self, _args: &CommandLineArguments) {
+        self.cleanup();
+        self.init_treeviews();
+    }
+
+    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        {
+            let mut info = pipeline.info.write().unwrap();
+
+            // Video streams
+            let mut sorted_ids = info
+                .streams
+                .video
+                .keys()
+                .map(|key| Arc::clone(key))
+                .collect::<Vec<Arc<str>>>();
+            sorted_ids.sort();
+            for stream_id in sorted_ids {
+                let stream = info.streams.get_video_mut(stream_id).unwrap();
+                let iter = self.add_stream(&self.video_store, stream);
+                let caps_structure = stream.caps.get_structure(0).unwrap();
+                if let Some(width) = caps_structure.get::<i32>("width") {
+                    self.video_store
+                        .set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
                 }
-                None => Some(stream),
-            };
-            if let Some(new_stream) = stream_to_select {
-                $selected = Some(new_stream);
-                $this.trigger_stream_selection();
+                if let Some(height) = caps_structure.get::<i32>("height") {
+                    self.video_store
+                        .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
+                }
+            }
+
+            // Audio streams
+            let mut sorted_ids = info
+                .streams
+                .audio
+                .keys()
+                .map(|key| Arc::clone(key))
+                .collect::<Vec<Arc<str>>>();
+            sorted_ids.sort();
+            for stream_id in sorted_ids {
+                let stream = info.streams.get_audio_mut(stream_id).unwrap();
+                let iter = self.add_stream(&self.audio_store, stream);
+                let caps_structure = stream.caps.get_structure(0).unwrap();
+                if let Some(rate) = caps_structure.get::<i32>("rate") {
+                    self.audio_store
+                        .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
+                }
+                if let Some(channels) = caps_structure.get::<i32>("channels") {
+                    self.audio_store.set_value(
+                        &iter,
+                        AUDIO_CHANNELS_COL,
+                        &gtk::Value::from(&channels),
+                    );
+                }
+            }
+
+            // Text streams
+            let mut sorted_ids = info
+                .streams
+                .text
+                .keys()
+                .map(|key| Arc::clone(key))
+                .collect::<Vec<Arc<str>>>();
+            sorted_ids.sort();
+            for stream_id in sorted_ids {
+                let stream = info.streams.get_text_mut(stream_id).unwrap();
+                let iter = self.add_stream(&self.text_store, stream);
+                let caps_structure = stream.caps.get_structure(0).unwrap();
+                if let Some(format) = caps_structure.get::<&str>("format") {
+                    self.text_store
+                        .set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
+                }
             }
         }
-    };
-);
 
-pub struct StreamsController {
-    video_treeview: gtk::TreeView,
-    video_store: gtk::ListStore,
-    video_selected: Option<String>,
+        self.video_selected = self.video_store.get_iter_first().map(|ref iter| {
+            self.video_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.video_store, iter)
+        });
 
-    audio_treeview: gtk::TreeView,
-    audio_store: gtk::ListStore,
-    audio_selected: Option<String>,
+        self.audio_selected = self.audio_store.get_iter_first().map(|ref iter| {
+            self.audio_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.audio_store, iter)
+        });
 
-    text_treeview: gtk::TreeView,
-    text_store: gtk::ListStore,
-    text_selected: Option<String>,
+        self.text_selected = self.text_store.get_iter_first().map(|ref iter| {
+            self.text_treeview.get_selection().select_iter(iter);
+            self.get_stream_at(&self.text_store, iter)
+        });
+    }
 
-    main_ctrl: Option<Weak<RefCell<MainController>>>,
+    fn cleanup(&mut self) {
+        self.video_store.clear();
+        self.video_selected = None;
+        self.audio_store.clear();
+        self.audio_selected = None;
+        self.text_store.clear();
+        self.text_selected = None;
+    }
 }
 
 impl StreamsController {
-    pub fn new(builder: &gtk::Builder) -> Rc<RefCell<Self>> {
-        let this_rc = Rc::new(RefCell::new(StreamsController {
+    pub fn new(builder: &gtk::Builder) -> Self {
+        StreamsController {
             video_treeview: builder.get_object("video_streams-treeview").unwrap(),
             video_store: builder.get_object("video_streams-liststore").unwrap(),
             video_selected: None,
@@ -85,154 +158,22 @@ impl StreamsController {
             text_treeview: builder.get_object("text_streams-treeview").unwrap(),
             text_store: builder.get_object("text_streams-liststore").unwrap(),
             text_selected: None,
-
-            main_ctrl: None,
-        }));
-
-        {
-            let mut this = this_rc.borrow_mut();
-            this.cleanup();
-            this.init_treeviews();
         }
-
-        this_rc
     }
 
-    pub fn register_callbacks(
-        this_rc: &Rc<RefCell<Self>>,
-        main_ctrl: &Rc<RefCell<MainController>>,
-    ) {
-        let mut this = this_rc.borrow_mut();
-
-        this.main_ctrl = Some(Rc::downgrade(main_ctrl));
-
-        // Video stream selection
-        let this_clone = Rc::clone(this_rc);
-        this.video_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                let mut this = this_clone.borrow_mut();
-                on_stream_selected!(this, this.video_store, tree_path, this.video_selected);
-            });
-
-        // Audio stream selection
-        let this_clone = Rc::clone(this_rc);
-        this.audio_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                let mut this = this_clone.borrow_mut();
-                on_stream_selected!(this, this.audio_store, tree_path, this.audio_selected);
-            });
-
-        // Text stream selection
-        let this_clone = Rc::clone(this_rc);
-        this.text_treeview
-            .connect_row_activated(move |_, tree_path, _| {
-                let mut this = this_clone.borrow_mut();
-                on_stream_selected!(this, this.text_store, tree_path, this.text_selected);
-            });
-    }
-
-    pub fn cleanup(&mut self) {
-        self.video_store.clear();
-        self.video_selected = None;
-        self.audio_store.clear();
-        self.audio_selected = None;
-        self.text_store.clear();
-        self.text_selected = None;
-    }
-
-    pub fn new_media(&mut self, context: &PlaybackContext) {
-        let info = context
-            .info
-            .read()
-            .expect("StreamsController::have_streams: failed to lock media info");
-
-        // Video streams
-        for stream in &info.streams.video {
-            let iter = self.add_stream(&self.video_store, stream);
-            let caps_structure = stream.caps.get_structure(0).unwrap();
-            if let Some(width) = caps_structure.get::<i32>("width") {
-                self.video_store
-                    .set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
-            }
-            if let Some(height) = caps_structure.get::<i32>("height") {
-                self.video_store
-                    .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
-            }
-        }
-
-        self.video_selected = match self.video_store.get_iter_first() {
-            Some(ref iter) => {
-                self.video_treeview.get_selection().select_iter(iter);
-                Some(self.get_stream_at(&self.video_store, iter))
-            }
-            None => None,
-        };
-
-        // Audio streams
-        for stream in &info.streams.audio {
-            let iter = self.add_stream(&self.audio_store, stream);
-            let caps_structure = stream.caps.get_structure(0).unwrap();
-            if let Some(rate) = caps_structure.get::<i32>("rate") {
-                self.audio_store
-                    .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
-            }
-            if let Some(channels) = caps_structure.get::<i32>("channels") {
-                self.audio_store
-                    .set_value(&iter, AUDIO_CHANNELS_COL, &gtk::Value::from(&channels));
-            }
-        }
-
-        self.audio_selected = match self.audio_store.get_iter_first() {
-            Some(ref iter) => {
-                self.audio_treeview.get_selection().select_iter(iter);
-                Some(self.get_stream_at(&self.audio_store, iter))
-            }
-            None => None,
-        };
-
-        // Text streams
-        for stream in &info.streams.text {
-            let iter = self.add_stream(&self.text_store, stream);
-            let caps_structure = stream.caps.get_structure(0).unwrap();
-            if let Some(format) = caps_structure.get::<&str>("format") {
-                self.text_store
-                    .set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
-            }
-        }
-
-        self.text_selected = match self.text_store.get_iter_first() {
-            Some(ref iter) => {
-                self.text_treeview.get_selection().select_iter(iter);
-                Some(self.get_stream_at(&self.text_store, iter))
-            }
-            None => None,
-        };
-    }
-
-    pub fn trigger_stream_selection(&self) {
-        // Asynchronoulsy notify the main controller
-        let main_ctrl_weak = Weak::clone(
-            self.main_ctrl
-                .as_ref()
-                .expect("StreamsController::trigger_stream_selection no main_ctrl"),
-        );
-        let mut streams: Vec<String> = Vec::new();
+    pub fn get_selected_streams(&self) -> Vec<Arc<str>> {
+        let mut streams: Vec<Arc<str>> = Vec::new();
         if let Some(stream) = self.video_selected.as_ref() {
-            streams.push(stream.clone());
+            streams.push(Arc::clone(stream));
         }
         if let Some(stream) = self.audio_selected.as_ref() {
-            streams.push(stream.clone());
+            streams.push(Arc::clone(stream));
         }
         if let Some(stream) = self.text_selected.as_ref() {
-            streams.push(stream.clone());
+            streams.push(Arc::clone(stream));
         }
-        gtk::idle_add(move || {
-            let main_ctrl_rc = main_ctrl_weak
-                .upgrade()
-                .expect("StreamsController::stream_changed can't upgrade main_ctrl");
-            main_ctrl_rc.borrow_mut().select_streams(&streams);
-            glib::Continue(false)
-        });
+
+        streams
     }
 
     fn add_stream(&self, store: &gtk::ListStore, stream: &Stream) -> gtk::TreeIter {
@@ -246,26 +187,23 @@ impl StreamsController {
         let iter = store.insert_with_values(
             None,
             &[STREAM_ID_COL, STREAM_ID_DISPLAY_COL],
-            &[&stream.id, &stream_id_display],
+            &[&stream.id.as_ref(), &stream_id_display],
         );
 
-        if let Some(tags) = stream.tags.as_ref() {
-            let language = match tags.get_index::<gst::tags::LanguageName>(0).as_ref() {
-                Some(language) => language.get().unwrap(),
-                None => match tags.get_index::<gst::tags::LanguageCode>(0).as_ref() {
-                    Some(language) => language.get().unwrap(),
-                    None => "-",
-                },
-            };
-            store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(language));
+        let lang = stream
+            .tags
+            .get_index::<gst::tags::LanguageName>(0)
+            .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
+            .and_then(|lang_tag| lang_tag.get())
+            .unwrap_or("-");
+        store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(lang));
 
-            if let Some(comment) = tags.get_index::<gst::tags::Comment>(0).as_ref() {
-                store.set_value(
-                    &iter,
-                    COMMENT_COL,
-                    &gtk::Value::from(comment.get().unwrap()),
-                );
-            }
+        if let Some(comment) = stream
+            .tags
+            .get_index::<gst::tags::Comment>(0)
+            .and_then(|tag| tag.get())
+        {
+            store.set_value(&iter, COMMENT_COL, &gtk::Value::from(comment));
         }
 
         store.set_value(&iter, CODEC_COL, &gtk::Value::from(&stream.codec_printable));
@@ -273,11 +211,12 @@ impl StreamsController {
         iter
     }
 
-    fn get_stream_at(&self, store: &gtk::ListStore, iter: &gtk::TreeIter) -> String {
+    pub fn get_stream_at(&self, store: &gtk::ListStore, iter: &gtk::TreeIter) -> Arc<str> {
         store
             .get_value(iter, STREAM_ID_COL as i32)
             .get::<String>()
             .unwrap()
+            .into()
     }
 
     fn init_treeviews(&self) {
@@ -288,42 +227,43 @@ impl StreamsController {
         let codec_lbl = gettext("Codec");
         let comment_lbl = gettext("Comment");
 
-        self.add_column(
+        // Video
+        self.add_text_column(
             &self.video_treeview,
             &stream_id_lbl,
             ALIGN_LEFT,
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
-        self.add_column(
+        self.add_text_column(
             &self.video_treeview,
             &language_lbl,
             ALIGN_CENTER,
             LANGUAGE_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.video_treeview,
             &codec_lbl,
             ALIGN_LEFT,
             CODEC_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.video_treeview,
             &gettext("Width"),
             ALIGN_RIGHT,
             VIDEO_WIDTH_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.video_treeview,
             &gettext("Height"),
             ALIGN_RIGHT,
             VIDEO_HEIGHT_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.video_treeview,
             &comment_lbl,
             ALIGN_LEFT,
@@ -331,43 +271,44 @@ impl StreamsController {
             None,
         );
 
+        // Audio
         self.audio_treeview.set_model(Some(&self.audio_store));
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &stream_id_lbl,
             ALIGN_LEFT,
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &language_lbl,
             ALIGN_CENTER,
             LANGUAGE_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &codec_lbl,
             ALIGN_LEFT,
             CODEC_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &gettext("Rate"),
             ALIGN_RIGHT,
             AUDIO_RATE_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &gettext("Channels"),
             ALIGN_RIGHT,
             AUDIO_CHANNELS_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.audio_treeview,
             &comment_lbl,
             ALIGN_LEFT,
@@ -375,30 +316,31 @@ impl StreamsController {
             None,
         );
 
+        // Text
         self.text_treeview.set_model(Some(&self.text_store));
-        self.add_column(
+        self.add_text_column(
             &self.text_treeview,
             &stream_id_lbl,
             ALIGN_LEFT,
             STREAM_ID_DISPLAY_COL,
             Some(200),
         );
-        self.add_column(
+        self.add_text_column(
             &self.text_treeview,
             &language_lbl,
             ALIGN_CENTER,
             LANGUAGE_COL,
             None,
         );
-        self.add_column(&self.text_treeview, &codec_lbl, ALIGN_LEFT, CODEC_COL, None);
-        self.add_column(
+        self.add_text_column(&self.text_treeview, &codec_lbl, ALIGN_LEFT, CODEC_COL, None);
+        self.add_text_column(
             &self.text_treeview,
             &gettext("Format"),
             ALIGN_LEFT,
             TEXT_FORMAT_COL,
             None,
         );
-        self.add_column(
+        self.add_text_column(
             &self.text_treeview,
             &comment_lbl,
             ALIGN_LEFT,
@@ -407,7 +349,7 @@ impl StreamsController {
         );
     }
 
-    fn add_column(
+    fn add_text_column(
         &self,
         treeview: &gtk::TreeView,
         title: &str,

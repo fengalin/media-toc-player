@@ -1,11 +1,19 @@
-pub mod context;
-pub use self::context::PlaybackContext;
+pub mod playback_pipeline;
+pub use self::playback_pipeline::PlaybackPipeline;
 
-pub enum ContextMessage {
-    AsyncDone,
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PlaybackState {
+    Paused,
+    Playing,
+}
+
+#[derive(Clone, Debug)]
+pub enum MediaEvent {
+    AsyncDone(PlaybackState),
     Eos,
     FailedToOpenMedia(String),
     InitDone,
     MissingPlugin(String),
+    ReadyForRefresh,
     StreamsSelected,
 }

@@ -1,102 +1,131 @@
-use gdk;
-use gtk;
 use glib;
-use glib::ObjectExt;
-use glib::signal::SignalHandlerId;
-use gtk::{BoxExt, ContainerExt, Inhibit, WidgetExt};
+use glib::{signal::SignalHandlerId, ObjectExt, ToValue};
+use gstreamer as gst;
+use gtk;
+use gtk::prelude::*;
+use log::debug;
 
-use std::rc::Rc;
-use std::cell::RefCell;
+use crate::{
+    application::{CommandLineArguments, CONFIG},
+    metadata::MediaInfo,
+};
 
-use media::PlaybackContext;
+use super::UIController;
 
-use super::MainController;
+pub struct VideoOutput {
+    sink: gst::Element,
+    pub(super) widget: gtk::Widget,
+}
 
 pub struct VideoController {
-    is_available: bool,
-    container: gtk::Box,
+    pub(super) video_output: Option<VideoOutput>,
+    pub(super) container: gtk::Box,
     cleaner_id: Option<SignalHandlerId>,
+}
+
+impl UIController for VideoController {
+    fn setup(&mut self, args: &CommandLineArguments) {
+        self.video_output = if !args.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
+            gst::ElementFactory::make("gtkglsink", "gtkglsink").map(|gtkglsink| {
+                let glsinkbin = gst::ElementFactory::make("glsinkbin", "video_sink")
+                    .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
+                glsinkbin
+                    .set_property("sink", &gtkglsink.to_value())
+                    .expect("VideoController: couldn't set `sink` for `glsinkbin`");
+
+                debug!("Using gtkglsink");
+                VideoOutput {
+                    sink: glsinkbin,
+                    widget: gtkglsink
+                        .get_property("widget")
+                        .expect("VideoController: couldn't get `widget` from `gtkglsink`")
+                        .get::<gtk::Widget>()
+                        .expect("VideoController: unexpected type for `widget` in `gtkglsink`"),
+                }
+            })
+        } else {
+            None
+        }
+        .or_else(|| {
+            gst::ElementFactory::make("gtksink", "video_sink").map(|sink| {
+                debug!("Using gtksink");
+                VideoOutput {
+                    sink: sink.clone(),
+                    widget: sink
+                        .get_property("widget")
+                        .expect("PlaybackPipeline: couldn't get `widget` from `gtksink`")
+                        .get::<gtk::Widget>()
+                        .expect("PlaybackPipeline: unexpected type for `widget` in `gtksink`"),
+                }
+            })
+        });
+
+        if let Some(video_output) = self.video_output.as_ref() {
+            self.container
+                .pack_start(&video_output.widget, true, true, 0);
+            self.container.reorder_child(&video_output.widget, 0);
+            video_output.widget.show();
+        }
+
+        self.cleanup();
+    }
+
+    fn cleanup(&mut self) {
+        if let Some(video_widget) = self.get_video_widget() {
+            if self.cleaner_id.is_none() {
+                self.cleaner_id = Some(video_widget.connect_draw(|widget, cr| {
+                    let allocation = widget.get_allocation();
+                    cr.set_source_rgb(0f64, 0f64, 0f64);
+                    cr.rectangle(
+                        0f64,
+                        0f64,
+                        f64::from(allocation.width),
+                        f64::from(allocation.height),
+                    );
+                    cr.fill();
+
+                    Inhibit(true)
+                }));
+                video_widget.queue_draw();
+            }
+        }
+    }
+
+    fn streams_changed(&mut self, info: &MediaInfo) {
+        if let Some(video_output) = self.video_output.as_mut() {
+            if let Some(cleaner_id) = self.cleaner_id.take() {
+                self.container.get_children()[0].disconnect(cleaner_id);
+            }
+
+            if info.streams.is_video_selected() {
+                debug!("streams_changed video selected");
+                video_output.widget.show();
+            } else {
+                debug!("streams_changed video not selected");
+                video_output.widget.hide();
+            }
+        }
+    }
 }
 
 impl VideoController {
     pub fn new(builder: &gtk::Builder) -> Self {
         VideoController {
-            is_available: false,
+            video_output: None,
             container: builder.get_object("video-container").unwrap(),
             cleaner_id: None,
         }
     }
 
-    pub fn register_callbacks(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
-        match PlaybackContext::get_video_widget() {
-            Some(video_widget) => {
-                // discard GStreamer defined navigation events on widget
-                video_widget.set_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32);
-
-                self.container.pack_start(&video_widget, true, true, 0);
-                self.container.reorder_child(&video_widget, 0);
-                video_widget.show();
-                self.cleanup();
-                let main_ctrl_clone = Rc::clone(main_ctrl);
-                self.container
-                    .connect_button_press_event(move |_, _event_button| {
-                        main_ctrl_clone.borrow_mut().play_pause();
-                        Inhibit(false)
-                    });
-
-                self.is_available = true;
-            }
-            None => {
-                let container = self.container.clone();
-                gtk::idle_add(move || {
-                    container.hide();
-                    glib::Continue(false)
-                });
-                self.is_available = false;
-            }
-        }
+    pub fn get_video_sink(&self) -> Option<gst::Element> {
+        self.video_output
+            .as_ref()
+            .map(|video_output| video_output.sink.clone())
     }
 
-    pub fn cleanup(&mut self) {
-        if self.is_available && self.cleaner_id.is_none() {
-            let video_widget = &self.container.get_children()[0];
-            self.cleaner_id = Some(video_widget.connect_draw(|widget, cr| {
-                let allocation = widget.get_allocation();
-                cr.set_source_rgb(0f64, 0f64, 0f64);
-                cr.rectangle(
-                    0f64,
-                    0f64,
-                    f64::from(allocation.width),
-                    f64::from(allocation.height),
-                );
-                cr.fill();
-
-                Inhibit(true)
-            }));
-            video_widget.queue_draw();
-        }
-    }
-
-    pub fn new_media(&mut self, context: &PlaybackContext) {
-        if self.is_available {
-            let video_widget = self.container.get_children()[0].clone();
-            if let Some(cleaner_id) = self.cleaner_id.take() {
-                video_widget.disconnect(cleaner_id);
-            }
-
-            let has_video = context
-                .info
-                .read()
-                .unwrap()
-                .streams
-                .video_selected
-                .is_some();
-
-            if has_video {
-                video_widget.show();
-            } else {
-                video_widget.hide();
-            }
-        }
+    fn get_video_widget(&self) -> Option<gtk::Widget> {
+        self.video_output
+            .as_ref()
+            .map(|video_output| video_output.widget.clone())
     }
 }

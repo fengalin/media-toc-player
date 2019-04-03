@@ -1,0 +1,15 @@
+[Desktop Entry]
+Name=media-toc-player
+Comment=A media player with a table of contents.
+Comment[es]=Un reproductor multimedia con una tabla de contenidos.
+Comment[fr]=Un lecteur multimédia muni d'une table des matières.
+GenericName=Media Player
+Exec=media-toc-player
+Icon=org.fengalin.media-toc
+Type=Application
+StartupNotify=true
+X-GNOME-UsesNotifications=true
+Categories=GStreamer;GTK;Multimedia;
+Keywords=Multimedia;table of contents;
+Keywords[es]=Multimedia;tabla de contenido;
+Keywords[fr]=Multimédia;table des matières;

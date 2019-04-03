@@ -1,12 +1,17 @@
 use directories::ProjectDirs;
 use gettextrs::gettext;
+use lazy_static::lazy_static;
+use log::{debug, error};
 use ron;
+use serde::{Deserialize, Serialize};
 
-use std::fs::{create_dir_all, File};
-use std::io::Write;
-use std::ops::{Deref, DerefMut};
-use std::path::PathBuf;
-use std::sync::RwLock;
+use std::{
+    fs::{create_dir_all, File},
+    io::Write,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+    sync::RwLock,
+};
 
 use super::{SLD, TLD};
 
@@ -25,6 +30,7 @@ pub struct UI {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct Media {
+    pub is_gl_disabled: bool,
     pub last_path: Option<PathBuf>,
 }
 
@@ -42,7 +48,8 @@ pub struct GlobalConfig {
 
 impl GlobalConfig {
     fn new() -> GlobalConfig {
-        let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"));
+        let project_dirs = ProjectDirs::from(TLD, SLD, env!("CARGO_PKG_NAME"))
+            .expect("Couldn't find project dirs for this platform");
         let config_dir = project_dirs.config_dir();
         create_dir_all(&config_dir).unwrap();
         let path = config_dir.join(CONFIG_FILENAME).to_owned();
