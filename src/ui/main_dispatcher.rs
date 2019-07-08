@@ -85,9 +85,10 @@ impl MainDispatcher {
 
             main_ctrl.tracker_fn = Some(Rc::new(with_main_ctrl!(
                 main_ctrl_rc => move |&mut main_ctrl| {
-                    if main_ctrl.state != ControllerState::Seeking {
+                    let state = main_ctrl.state;
+                    if state != ControllerState::Seeking {
                         let position = main_ctrl.pipeline.as_mut().unwrap().get_position();
-                        main_ctrl.info_ctrl.tick(position, false);
+                        main_ctrl.info_ctrl.tick(position, state);
                     }
                 }
             )));

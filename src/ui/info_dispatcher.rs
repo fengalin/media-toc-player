@@ -10,7 +10,7 @@ use crate::application::CONFIG;
 
 use crate::with_main_ctrl;
 
-use super::{MainController, UIDispatcher};
+use super::{ControllerState, MainController, UIDispatcher};
 
 pub struct InfoDispatcher;
 impl UIDispatcher for InfoDispatcher {
@@ -67,7 +67,7 @@ impl UIDispatcher for InfoDispatcher {
                     if let Some(iter) = info_ctrl.chapter_manager.get_iter(tree_path) {
                         let position = info_ctrl.chapter_manager.get_chapter_at_iter(&iter).start();
                         // update position
-                        info_ctrl.tick(position, false);
+                        info_ctrl.tick(position, ControllerState::Seeking);
                         main_ctrl.seek(position, gst::SeekFlags::ACCURATE);
                     }
                 }

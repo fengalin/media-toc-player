@@ -25,7 +25,7 @@ const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
 const TRACKER_PERIOD: u32 = 40; //  40 ms (25 Hz)
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ControllerState {
     EOS,
     Paused,
@@ -343,9 +343,9 @@ impl MainController {
             MediaEvent::StreamsSelected => self.streams_selected(),
             MediaEvent::Eos => {
                 self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
+                self.state = ControllerState::EOS;
                 // The tracker will be register again in case of a seek
                 self.remove_tracker();
-                self.state = ControllerState::EOS;
             }
             MediaEvent::FailedToOpenMedia(error) => {
                 self.pipeline = None;
@@ -396,6 +396,12 @@ impl MainController {
     fn remove_tracker(&mut self) {
         if let Some(source_id) = self.tracker_src.take() {
             glib::source_remove(source_id);
+            // Call the tracker one last time to update the UI
+            let tracker_fn = Rc::clone(self.tracker_fn.as_ref().unwrap());
+            gtk::idle_add(move || {
+                tracker_fn();
+                glib::Continue(false)
+            });
         }
     }
 

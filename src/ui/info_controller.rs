@@ -282,7 +282,7 @@ impl InfoController {
         self.ui_event.seek(position, gst::SeekFlags::ACCURATE)
     }
 
-    pub fn tick(&mut self, position: u64, is_eos: bool) {
+    pub fn tick(&mut self, position: u64, state: ControllerState) {
         self.timeline_scale.set_value(position as f64);
         self.position_lbl
             .set_text(&Timestamp::format(position, false));
@@ -292,7 +292,7 @@ impl InfoController {
 
         if self.repeat_chapter {
             // repeat is activated
-            if is_eos {
+            if state == ControllerState::EOS {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
                 self.chapter_manager.rewind();
@@ -340,7 +340,7 @@ impl InfoController {
 
         if *state != ControllerState::Playing {
             // force sync
-            self.tick(position, false);
+            self.tick(position, ControllerState::Seeking);
         }
     }
 
