@@ -54,8 +54,8 @@ impl PlaybackPipeline {
         );
 
         let mut this = PlaybackPipeline {
-            pipeline: gst::Pipeline::new("playback_pipeline"),
-            decodebin: gst::ElementFactory::make("decodebin3", "decodebin").unwrap(),
+            pipeline: gst::Pipeline::new(Some("playback_pipeline")),
+            decodebin: gst::ElementFactory::make("decodebin3", Some("decodebin")).unwrap(),
 
             info: Arc::new(RwLock::new(MediaInfo::new(path))),
         };
@@ -156,7 +156,8 @@ impl PlaybackPipeline {
         self.pipeline.add(&file_src).unwrap();
         file_src.link(&self.decodebin).unwrap();
 
-        let audio_sink = gst::ElementFactory::make("autoaudiosink", "audio_playback_sink").unwrap();
+        let audio_sink =
+            gst::ElementFactory::make("autoaudiosink", Some("audio_playback_sink")).unwrap();
 
         // Prepare pad configuration callback
         let video_sink = video_sink.clone();
