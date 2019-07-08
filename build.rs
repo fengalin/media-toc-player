@@ -9,8 +9,6 @@ use std::path::PathBuf;
 use std::process::Command;
 
 #[cfg(target_family = "unix")]
-use std::fs::read_dir;
-#[cfg(target_family = "unix")]
 use std::io::Write;
 
 fn generate_resources() {
