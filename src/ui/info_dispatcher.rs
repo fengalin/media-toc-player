@@ -12,6 +12,8 @@ use crate::with_main_ctrl;
 
 use super::{ControllerState, MainController, UIDispatcher};
 
+const SEEK_STEP: u64 = 2_500_000_000;
+
 pub struct InfoDispatcher;
 impl UIDispatcher for InfoDispatcher {
     fn setup(gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>) {
@@ -123,5 +125,34 @@ impl UIDispatcher for InfoDispatcher {
             }
         ));
         gtk_app.set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
+
+        // Register Step forward action
+        let step_forward = gio::SimpleAction::new("step_forward", None);
+        gtk_app.add_action(&step_forward);
+        step_forward.connect_activate(with_main_ctrl!(
+            main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                let seek_target = main_ctrl.get_position() + SEEK_STEP;
+                main_ctrl.seek(seek_target, gst::SeekFlags::ACCURATE);
+            }
+        ));
+        gtk_app.set_accels_for_action("app.step_forward", &["Right"]);
+
+        // Register Step back action
+        let step_back = gio::SimpleAction::new("step_back", None);
+        gtk_app.add_action(&step_back);
+        step_back.connect_activate(with_main_ctrl!(
+            main_ctrl_rc => move |&mut main_ctrl, _, _| {
+                let seek_pos = {
+                    let ts = main_ctrl.get_position();
+                    if ts > SEEK_STEP {
+                        ts - SEEK_STEP
+                    } else {
+                        0
+                    }
+                };
+                main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
+            }
+        ));
+        gtk_app.set_accels_for_action("app.step_back", &["Left"]);
     }
 }
