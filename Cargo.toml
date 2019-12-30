@@ -12,24 +12,26 @@ repository = "https://github.com/fengalin/media-toc-player"
 version = "0.1.99"
 
 [dependencies]
-cairo-rs = "0.7"
+bitflags = "1"
+cairo-rs = "0.8"
 clap = "2"
 directories = "2"
-env_logger = "0.6"
-gdk = "0.11"
+env_logger = "0.7"
+futures = "0.3"
+gdk = "0.12"
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
-gio = "0.7"
-glib = "0.8"
-gstreamer = { version = "0.14", features = ["v1_10"] }
-gtk = { version = "0.7", features = ["v3_18"] }
-image = "0.21"
+gio = "0.8"
+glib = "0.9"
+gstreamer = { version = "0.15", features = ["v1_10"] }
+gtk = { version = "0.8", features = ["v3_20"] }
+image = "0.22"
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-nom = "4.2"
+nom = "5"
 ron = "0.5"
 serde = "1"
 serde_derive = "1"
 
 [build-dependencies]
 directories = "2"
-
+lazy_static = "1"

@@ -1,13 +1,10 @@
 language: rust
 
-env:
-  - GTK=3.18
-
 matrix:
   include:
     - os: linux
       rust: stable
-      dist: xenial
+      dist: bionic
     - os: osx
       rust: stable
 

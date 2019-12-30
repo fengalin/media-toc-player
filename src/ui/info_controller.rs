@@ -1,29 +1,25 @@
 use cairo;
 use gettextrs::gettext;
+use gio;
 use gstreamer as gst;
 use gtk;
 use gtk::prelude::*;
-use lazy_static::lazy_static;
 use log::{info, warn};
 
 use std::fs::File;
 
 use crate::{
-    application::{CommandLineArguments, CONFIG},
-    media::PlaybackPipeline,
+    application::CONFIG,
+    media::{PlaybackPipeline, Timestamp},
     metadata,
-    metadata::{MediaInfo, Timestamp},
+    metadata::{Duration, MediaInfo, Timestamp4Humans},
 };
 
 use super::{
     ChapterTreeManager, ControllerState, Image, PositionStatus, UIController, UIEventSender,
 };
 
-const GO_TO_PREV_CHAPTER_THRESHOLD: u64 = 1_000_000_000; // 1 s
-
-lazy_static! {
-    static ref EMPTY_REPLACEMENT: &'static str = "-";
-}
+const EMPTY_REPLACEMENT: &str = "-";
 
 pub struct InfoController {
     ui_event: UIEventSender,
@@ -38,35 +34,24 @@ pub struct InfoController {
     container_lbl: gtk::Label,
     audio_codec_lbl: gtk::Label,
     video_codec_lbl: gtk::Label,
-    position_lbl: gtk::Label,
     duration_lbl: gtk::Label,
 
     pub(super) timeline_scale: gtk::Scale,
     pub(super) repeat_btn: gtk::ToggleToolButton,
 
     pub(super) chapter_treeview: gtk::TreeView,
+    pub(super) next_chapter_action: gio::SimpleAction,
+    pub(super) previous_chapter_action: gio::SimpleAction,
 
     thumbnail: Option<Image>,
 
     pub(super) chapter_manager: ChapterTreeManager,
 
-    duration: u64,
+    duration: Duration,
     pub(super) repeat_chapter: bool,
 }
 
 impl UIController for InfoController {
-    fn setup(&mut self, _args: &CommandLineArguments) {
-        self.cleanup();
-
-        // Show chapters toggle
-        if CONFIG.read().unwrap().ui.is_chapters_list_hidden {
-            self.show_chapters_btn.set_active(false);
-            self.info_container.hide();
-        }
-
-        self.show_chapters_btn.set_sensitive(true);
-    }
-
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         let toc_extensions = metadata::Factory::get_extensions();
 
@@ -89,33 +74,22 @@ impl UIController for InfoController {
                     });
 
             self.duration = info.duration;
-            self.timeline_scale.set_range(0f64, info.duration as f64);
+            self.timeline_scale.set_range(0f64, info.duration.as_f64());
             self.duration_lbl
-                .set_label(&Timestamp::format(info.duration, false));
+                .set_label(&Timestamp4Humans::from_duration(info.duration).to_string());
 
-            if !info.streams.is_video_selected() {
-                self.thumbnail = info.get_media_image().and_then(|image| {
-                    image.get_buffer().and_then(|image_buffer| {
-                        image_buffer.map_readable().and_then(|image_map| {
-                            Image::from_unknown(image_map.as_slice())
-                                .map_err(|err| warn!("{}", err))
-                                .ok()
-                        })
+            self.thumbnail = info.get_media_image().and_then(|image| {
+                image.get_buffer().and_then(|image_buffer| {
+                    image_buffer.map_readable().ok().and_then(|image_map| {
+                        Image::from_unknown(image_map.as_slice())
+                            .map_err(|err| warn!("{}", err))
+                            .ok()
                     })
-                });
-
-                // show the drawingarea for audio files even when
-                // there is no thumbnail so that we get an area
-                // with the default background, not the black background
-                // of the video widget
-                self.drawingarea.show();
-                self.drawingarea.queue_draw();
-            } else {
-                self.drawingarea.hide();
-            }
+                })
+            });
 
             self.container_lbl
-                .set_label(info.get_container().unwrap_or(&EMPTY_REPLACEMENT));
+                .set_label(info.get_container().unwrap_or(EMPTY_REPLACEMENT));
 
             let extern_toc = toc_candidates
                 .next()
@@ -164,12 +138,24 @@ impl UIController for InfoController {
         self.update_marks();
 
         self.repeat_btn.set_sensitive(true);
-        if let Some(current_iter) = self.chapter_manager.get_selected_iter() {
+        if let Some(sel_chapter) = self.chapter_manager.selected() {
             // position is in a chapter => select it
             self.chapter_treeview
                 .get_selection()
-                .select_iter(&current_iter);
+                .select_iter(sel_chapter.iter());
         }
+
+        self.next_chapter_action.set_enabled(true);
+        self.previous_chapter_action.set_enabled(true);
+
+        if self.thumbnail.is_some() {
+            self.drawingarea.show();
+            self.drawingarea.queue_draw();
+        } else {
+            self.drawingarea.hide();
+        }
+
+        self.ui_event.update_focus();
     }
 
     fn cleanup(&mut self) {
@@ -178,41 +164,63 @@ impl UIController for InfoController {
         self.container_lbl.set_text("");
         self.audio_codec_lbl.set_text("");
         self.video_codec_lbl.set_text("");
-        self.position_lbl.set_text("00:00.000");
         self.duration_lbl.set_text("00:00.000");
         self.thumbnail = None;
+        self.chapter_treeview.get_selection().unselect_all();
         self.chapter_manager.clear();
+        self.next_chapter_action.set_enabled(false);
+        self.previous_chapter_action.set_enabled(false);
         self.timeline_scale.clear_marks();
         self.timeline_scale.set_value(0f64);
-        self.duration = 0;
+        self.duration = Duration::default();
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
         match info.get_media_artist() {
             Some(artist) => self.artist_lbl.set_label(&artist),
-            None => self.artist_lbl.set_label(&EMPTY_REPLACEMENT),
+            None => self.artist_lbl.set_label(EMPTY_REPLACEMENT),
         }
         match info.get_media_title() {
             Some(title) => self.title_lbl.set_label(&title),
-            None => self.title_lbl.set_label(&EMPTY_REPLACEMENT),
+            None => self.title_lbl.set_label(EMPTY_REPLACEMENT),
         }
 
         self.audio_codec_lbl
-            .set_label(info.streams.get_audio_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            .set_label(info.streams.get_audio_codec().unwrap_or(EMPTY_REPLACEMENT));
         self.video_codec_lbl
-            .set_label(info.streams.get_video_codec().unwrap_or(&EMPTY_REPLACEMENT));
+            .set_label(info.streams.get_video_codec().unwrap_or(EMPTY_REPLACEMENT));
+    }
+
+    fn grab_focus(&self) {
+        self.chapter_treeview.grab_focus();
+
+        match self.chapter_manager.selected_path() {
+            Some(sel_path) => {
+                self.chapter_treeview
+                    .set_cursor(&sel_path, None::<&gtk::TreeViewColumn>, false);
+                self.chapter_treeview.grab_default();
+            }
+            None => {
+                // Set the cursor to an uninitialized path to unselect
+                self.chapter_treeview.set_cursor(
+                    &gtk::TreePath::new(),
+                    None::<&gtk::TreeViewColumn>,
+                    false,
+                );
+            }
+        }
     }
 }
 
 impl InfoController {
-    pub fn new(builder: &gtk::Builder, ui_event_sender: UIEventSender) -> Self {
-        let chapter_manager =
+    pub fn new(builder: &gtk::Builder, ui_event: UIEventSender) -> Self {
+        let mut chapter_manager =
             ChapterTreeManager::new(builder.get_object("chapters-tree-store").unwrap());
         let chapter_treeview: gtk::TreeView = builder.get_object("chapter-treeview").unwrap();
         chapter_manager.init_treeview(&chapter_treeview);
 
-        InfoController {
-            ui_event: ui_event_sender,
+        let mut ctrl = InfoController {
+            ui_event,
 
             info_container: builder.get_object("info-chapter_list-grid").unwrap(),
             show_chapters_btn: builder.get_object("show_chapters-toggle").unwrap(),
@@ -224,21 +232,34 @@ impl InfoController {
             container_lbl: builder.get_object("container-lbl").unwrap(),
             audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
             video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
-            position_lbl: builder.get_object("position-lbl").unwrap(),
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
 
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
             repeat_btn: builder.get_object("repeat-toolbutton").unwrap(),
 
             chapter_treeview,
+            next_chapter_action: gio::SimpleAction::new("next_chapter", None),
+            previous_chapter_action: gio::SimpleAction::new("previous_chapter", None),
 
             thumbnail: None,
 
             chapter_manager,
 
-            duration: 0,
+            duration: Duration::default(),
             repeat_chapter: false,
+        };
+
+        ctrl.cleanup();
+
+        // Show chapters toggle
+        if CONFIG.read().unwrap().ui.is_chapters_list_hidden {
+            ctrl.show_chapters_btn.set_active(false);
+            ctrl.info_container.hide();
         }
+
+        ctrl.show_chapters_btn.set_sensitive(true);
+
+        ctrl
     }
 
     pub fn draw_thumbnail(&mut self, drawingarea: &gtk::DrawingArea, cairo_ctx: &cairo::Context) {
@@ -272,100 +293,65 @@ impl InfoController {
         self.timeline_scale.clear_marks();
 
         let timeline_scale = self.timeline_scale.clone();
-        self.chapter_manager.for_each(None, move |chapter| {
-            timeline_scale.add_mark(chapter.start() as f64, gtk::PositionType::Top, None);
-            true // keep going until the last chapter
+        self.chapter_manager.iter().for_each(move |chapter| {
+            timeline_scale.add_mark(chapter.start().as_f64(), gtk::PositionType::Top, None);
         });
     }
 
-    fn repeat_at(&self, position: u64) {
-        self.ui_event.seek(position, gst::SeekFlags::ACCURATE)
+    fn repeat_at(&self, ts: Timestamp) {
+        self.ui_event.seek(ts, gst::SeekFlags::ACCURATE)
     }
 
-    pub fn tick(&mut self, position: u64, state: ControllerState) {
-        self.timeline_scale.set_value(position as f64);
-        self.position_lbl
-            .set_text(&Timestamp::format(position, false));
+    pub fn tick(&mut self, ts: Timestamp, state: ControllerState) {
+        self.timeline_scale.set_value(ts.as_f64());
 
-        let (mut position_status, prev_selected_iter) =
-            self.chapter_manager.update_position(position);
+        let mut position_status = self.chapter_manager.update_ts(ts);
 
         if self.repeat_chapter {
             // repeat is activated
             if state == ControllerState::EOS {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
-                self.chapter_manager.rewind();
-                self.repeat_at(0);
-            } else if position_status == PositionStatus::ChapterChanged {
-                if let Some(ref prev_selected_iter) = prev_selected_iter {
+                self.repeat_at(Timestamp::default());
+            } else if let PositionStatus::ChapterChanged { prev_chapter } = &position_status {
+                if let Some(prev_chapter) = prev_chapter {
                     // reset position_status because we will be looping on current chapter
+                    let prev_start = prev_chapter.start;
                     position_status = PositionStatus::ChapterNotChanged;
 
-                    // unselect chapter in order to avoid tracing change to current position
+                    // unselect chapter in order to avoid tracing change to current timestamp
                     self.chapter_manager.unselect();
-                    self.repeat_at(
-                        self.chapter_manager
-                            .get_chapter_at_iter(prev_selected_iter)
-                            .start(),
-                    );
+                    self.repeat_at(prev_start);
                 }
             }
         }
 
-        if position_status == PositionStatus::ChapterChanged {
-            match self.chapter_manager.get_selected_iter() {
-                Some(current_iter) => {
-                    // position is in a chapter => select it
+        if let PositionStatus::ChapterChanged { prev_chapter } = position_status {
+            // let go the mutable reference on `self.chapter_manager`
+            match self.chapter_manager.selected() {
+                Some(sel_chapter) => {
+                    // timestamp is in a chapter => select it
                     self.chapter_treeview
                         .get_selection()
-                        .select_iter(&current_iter);
+                        .select_iter(sel_chapter.iter());
                 }
                 None =>
-                // position is not in any chapter
+                // timestamp is not in any chapter
                 {
-                    if let Some(ref prev_selected_iter) = prev_selected_iter {
+                    if let Some(prev_chapter) = prev_chapter {
                         // but a previous chapter was selected => unselect it
                         self.chapter_treeview
                             .get_selection()
-                            .unselect_iter(prev_selected_iter);
+                            .unselect_iter(&prev_chapter.iter);
                     }
                 }
             }
+
+            self.ui_event.update_focus();
         }
     }
 
-    pub fn seek(&mut self, position: u64, state: &ControllerState) {
-        self.chapter_manager.prepare_for_seek();
-
-        if *state != ControllerState::Playing {
-            // force sync
-            self.tick(position, ControllerState::Seeking);
-        }
-    }
-
-    pub fn previous_pos(&self, position: u64) -> u64 {
-        {
-            let cur_start = self
-                .chapter_manager
-                .get_selected_iter()
-                .map(|cur_iter| self.chapter_manager.get_chapter_at_iter(&cur_iter).start());
-            let prev_start = self
-                .chapter_manager
-                .prev_iter()
-                .map(|prev_iter| self.chapter_manager.get_chapter_at_iter(&prev_iter).start());
-
-            match (cur_start, prev_start) {
-                (Some(cur_start), prev_start_opt) => {
-                    if cur_start + GO_TO_PREV_CHAPTER_THRESHOLD < position {
-                        Some(cur_start)
-                    } else {
-                        prev_start_opt
-                    }
-                }
-                (None, prev_start_opt) => prev_start_opt,
-            }
-        }
-        .unwrap_or(0)
+    pub fn seek(&mut self, target: Timestamp) {
+        self.tick(target, ControllerState::Seeking);
     }
 }

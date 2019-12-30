@@ -1,6 +1,7 @@
 use gettextrs::gettext;
-use gst::tags::*;
+use gst::Tag;
 use gstreamer as gst;
+use lazy_static::lazy_static;
 
 use std::{
     collections::HashMap,
@@ -8,14 +9,56 @@ use std::{
     sync::Arc,
 };
 
-use super::MediaContent;
+use super::{Duration, MediaContent};
 
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")
 }
 
+macro_rules! add_tag_names (
+    ($($tag_type:path),+) => {
+        {
+            let mut tag_names = Vec::new();
+            $(tag_names.push(<$tag_type>::tag_name());)+
+            tag_names
+        }
+    };
+);
+
+lazy_static! {
+    static ref TAGS_TO_SKIP_FOR_TRACK: Vec<&'static str> = {
+        add_tag_names!(
+            gst::tags::Album,
+            gst::tags::AlbumSortname,
+            gst::tags::AlbumSortname,
+            gst::tags::AlbumArtist,
+            gst::tags::AlbumArtistSortname,
+            gst::tags::ApplicationName,
+            gst::tags::ApplicationData,
+            gst::tags::Artist,
+            gst::tags::ArtistSortname,
+            gst::tags::AudioCodec,
+            gst::tags::Codec,
+            gst::tags::ContainerFormat,
+            gst::tags::Duration,
+            gst::tags::Encoder,
+            gst::tags::EncoderVersion,
+            gst::tags::Image,
+            gst::tags::ImageOrientation,
+            gst::tags::PreviewImage,
+            gst::tags::SubtitleCodec,
+            gst::tags::Title,
+            gst::tags::TitleSortname,
+            gst::tags::TrackCount,
+            gst::tags::TrackNumber,
+            gst::tags::VideoCodec
+        )
+    };
+}
+
 macro_rules! get_tag_for_display (
     ($info:expr, $primary_tag:ty, $secondary_tag:ty) => {
+        #[allow(clippy::redundant_closure)]
         $info
             .get_tag_list::<$primary_tag>()
             .or_else(|| $info.get_tag_list::<$secondary_tag>())
@@ -28,7 +71,7 @@ macro_rules! get_tag_for_display (
                 tag_list
                     .get_index::<$primary_tag>(0)
                     .or_else(|| tag_list.get_index::<$secondary_tag>(0))
-                    .and_then(|tag| tag.get().map(|value| value.to_owned()))
+                    .and_then(|value| value.get().map(|ref_value| ref_value.to_owned()))
             })
     };
 );
@@ -45,20 +88,17 @@ pub struct Stream {
 impl Stream {
     fn new(stream: &gst::Stream) -> Self {
         let caps = stream.get_caps().unwrap();
-        let tags = stream
-            .get_tags()
-            .map(|tags| tags.clone())
-            .unwrap_or_else(|| gst::TagList::new());
+        let tags = stream.get_tags().unwrap_or_else(gst::TagList::new);
         let type_ = stream.get_stream_type();
 
         let codec_printable = match type_ {
-            gst::StreamType::AUDIO => tags.get_index::<AudioCodec>(0).clone(),
-            gst::StreamType::VIDEO => tags.get_index::<VideoCodec>(0).clone(),
-            gst::StreamType::TEXT => tags.get_index::<SubtitleCodec>(0).clone(),
+            gst::StreamType::AUDIO => tags.get_index::<gst::tags::AudioCodec>(0),
+            gst::StreamType::VIDEO => tags.get_index::<gst::tags::VideoCodec>(0),
+            gst::StreamType::TEXT => tags.get_index::<gst::tags::SubtitleCodec>(0),
             _ => panic!("Stream::new can't handle {:?}", type_),
         }
-        .or_else(|| tags.get_index::<Codec>(0).clone())
-        .and_then(|codec_tag| codec_tag.get())
+        .or_else(|| tags.get_index::<gst::tags::Codec>(0))
+        .and_then(glib::value::TypedValue::get)
         .map_or_else(
             || {
                 // codec in caps in the form "streamtype/x-codec"
@@ -74,7 +114,7 @@ impl Stream {
                     codec.to_string()
                 }
             },
-            |codec_str| codec_str.to_string(),
+            ToString::to_string,
         );
 
         Stream {
@@ -212,7 +252,7 @@ impl Streams {
             .map(|stream| stream.codec_printable.as_str())
     }
 
-    fn get_tag_list<'a, T: Tag<'a>>(&self) -> Option<gst::TagList> {
+    fn get_tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
         self.selected_audio()
             .and_then(|selected_audio| {
                 if selected_audio.tags.get_size::<T>() > 0 {
@@ -244,7 +284,7 @@ pub struct MediaInfo {
     pub chapter_count: Option<usize>,
 
     pub description: String,
-    pub duration: u64,
+    pub duration: Duration,
 
     pub streams: Streams,
 }
@@ -268,7 +308,7 @@ impl MediaInfo {
         self.tags = self.tags.merge(tags, gst::TagMergeMode::Keep);
     }
 
-    fn get_tag_list<'a, T: Tag<'a>>(&self) -> Option<gst::TagList> {
+    fn get_tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
         if self.tags.get_size::<T>() > 0 {
             Some(self.tags.clone())
         } else {
@@ -277,15 +317,15 @@ impl MediaInfo {
     }
 
     pub fn get_media_artist(&self) -> Option<String> {
-        get_tag_for_display!(self, Artist, AlbumArtist)
+        get_tag_for_display!(self, gst::tags::Artist, gst::tags::AlbumArtist)
     }
 
     pub fn get_media_title(&self) -> Option<String> {
-        get_tag_for_display!(self, Title, Album)
+        get_tag_for_display!(self, gst::tags::Title, gst::tags::Album)
     }
 
     pub fn get_media_image(&self) -> Option<gst::Sample> {
-        get_tag_for_display!(self, Image, PreviewImage)
+        get_tag_for_display!(self, gst::tags::Image, gst::tags::PreviewImage)
     }
 
     pub fn get_container(&self) -> Option<&str> {
@@ -300,7 +340,7 @@ impl MediaInfo {
         }
 
         self.tags
-            .get_index::<ContainerFormat>(0)
-            .and_then(|tag| tag.get())
+            .get_index::<gst::tags::ContainerFormat>(0)
+            .and_then(glib::value::TypedValue::get)
     }
 }

@@ -24,52 +24,6 @@ pub struct VideoController {
 }
 
 impl UIController for VideoController {
-    fn setup(&mut self, args: &CommandLineArguments) {
-        self.video_output = if !args.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
-            gst::ElementFactory::make("gtkglsink", Some("gtkglsink")).map(|gtkglsink| {
-                let glsinkbin = gst::ElementFactory::make("glsinkbin", Some("video_sink"))
-                    .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
-                glsinkbin
-                    .set_property("sink", &gtkglsink.to_value())
-                    .expect("VideoController: couldn't set `sink` for `glsinkbin`");
-
-                debug!("Using gtkglsink");
-                VideoOutput {
-                    sink: glsinkbin,
-                    widget: gtkglsink
-                        .get_property("widget")
-                        .expect("VideoController: couldn't get `widget` from `gtkglsink`")
-                        .get::<gtk::Widget>()
-                        .expect("VideoController: unexpected type for `widget` in `gtkglsink`"),
-                }
-            })
-        } else {
-            None
-        }
-        .or_else(|| {
-            gst::ElementFactory::make("gtksink", Some("video_sink")).map(|sink| {
-                debug!("Using gtksink");
-                VideoOutput {
-                    sink: sink.clone(),
-                    widget: sink
-                        .get_property("widget")
-                        .expect("PlaybackPipeline: couldn't get `widget` from `gtksink`")
-                        .get::<gtk::Widget>()
-                        .expect("PlaybackPipeline: unexpected type for `widget` in `gtksink`"),
-                }
-            })
-        });
-
-        if let Some(video_output) = self.video_output.as_ref() {
-            self.container
-                .pack_start(&video_output.widget, true, true, 0);
-            self.container.reorder_child(&video_output.widget, 0);
-            video_output.widget.show();
-        }
-
-        self.cleanup();
-    }
-
     fn cleanup(&mut self) {
         if let Some(video_widget) = self.get_video_widget() {
             if self.cleaner_id.is_none() {
@@ -92,29 +46,82 @@ impl UIController for VideoController {
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
-        if let Some(video_output) = self.video_output.as_mut() {
+        if self.video_output.is_some() {
             if let Some(cleaner_id) = self.cleaner_id.take() {
                 self.container.get_children()[0].disconnect(cleaner_id);
             }
 
             if info.streams.is_video_selected() {
                 debug!("streams_changed video selected");
-                video_output.widget.show();
+                self.container.show();
             } else {
                 debug!("streams_changed video not selected");
-                video_output.widget.hide();
+                self.container.hide();
             }
         }
     }
 }
 
 impl VideoController {
-    pub fn new(builder: &gtk::Builder) -> Self {
-        VideoController {
-            video_output: None,
-            container: builder.get_object("video-container").unwrap(),
-            cleaner_id: None,
+    pub fn new(builder: &gtk::Builder, args: &CommandLineArguments) -> Self {
+        let container: gtk::Box = builder.get_object("video-container").unwrap();
+
+        let video_output = if !args.disable_gl && !CONFIG.read().unwrap().media.is_gl_disabled {
+            gst::ElementFactory::make("gtkglsink", Some("gtkglsink"))
+                .map(|gtkglsink| {
+                    let glsinkbin = gst::ElementFactory::make("glsinkbin", Some("video_sink"))
+                        .expect("PlaybackPipeline: couldn't get `glsinkbin` from `gtkglsink`");
+                    glsinkbin
+                        .set_property("sink", &gtkglsink.to_value())
+                        .expect("VideoController: couldn't set `sink` for `glsinkbin`");
+
+                    debug!("Using gtkglsink");
+                    VideoOutput {
+                        sink: glsinkbin,
+                        widget: gtkglsink
+                            .get_property("widget")
+                            .expect("VideoController: couldn't get `widget` from `gtkglsink`")
+                            .get::<gtk::Widget>()
+                            .expect("VideoController: unexpected type for `widget` in `gtkglsink`")
+                            .expect("VideoController: `widget` not found in `gtkglsink`"),
+                    }
+                })
+                .ok()
+        } else {
+            None
         }
+        .or_else(|| {
+            gst::ElementFactory::make("gtksink", Some("video_sink"))
+                .map(|sink| {
+                    debug!("Using gtksink");
+                    VideoOutput {
+                        sink: sink.clone(),
+                        widget: sink
+                            .get_property("widget")
+                            .expect("VideoController: couldn't get `widget` from `gtksink`")
+                            .get::<gtk::Widget>()
+                            .expect("VideoController: unexpected type for `widget` in `gtksink`")
+                            .expect("VideoController: `widget` not found in `gtksink`"),
+                    }
+                })
+                .ok()
+        });
+
+        if let Some(video_output) = video_output.as_ref() {
+            container.pack_start(&video_output.widget, true, true, 0);
+            container.reorder_child(&video_output.widget, 0);
+            video_output.widget.show();
+        };
+
+        let mut video_ctrl = VideoController {
+            video_output,
+            container,
+            cleaner_id: None,
+        };
+
+        video_ctrl.cleanup();
+
+        video_ctrl
     }
 
     pub fn get_video_sink(&self) -> Option<gst::Element> {

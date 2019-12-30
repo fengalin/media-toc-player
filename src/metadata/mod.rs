@@ -1,21 +1,24 @@
 use gstreamer as gst;
 
+mod duration;
+pub use duration::Duration;
+
 pub mod factory;
 pub use self::factory::Factory;
 
-pub mod format;
+mod format;
 pub use self::format::Reader;
 
 pub mod media_info;
 pub use self::media_info::{get_default_chapter_title, MediaInfo, Stream, Streams};
 
-pub mod mkvmerge_text_format;
+mod mkvmerge_text_format;
 pub use self::mkvmerge_text_format::MKVMergeTextFormat;
 
-pub mod timestamp;
-pub use self::timestamp::{parse_timestamp, Timestamp};
+mod timestamp_4_humans;
+pub use self::timestamp_4_humans::{parse_timestamp, Timestamp4Humans};
 
-pub mod toc_visitor;
+mod toc_visitor;
 pub use self::toc_visitor::{TocVisit, TocVisitor};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -68,4 +71,14 @@ impl Default for MediaContent {
     fn default() -> Self {
         MediaContent::Undefined
     }
+}
+
+use nom::{character::complete::digit1, error::ErrorKind, Err, IResult};
+
+fn parse_to<T: std::str::FromStr>(i: &str) -> IResult<&str, T> {
+    let (i, res) = digit1(i)?;
+
+    res.parse::<T>()
+        .map(move |value| (i, value))
+        .map_err(move |_| Err::Error((i, ErrorKind::ParseTo)))
 }

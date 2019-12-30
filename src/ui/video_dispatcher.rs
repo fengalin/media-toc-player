@@ -1,43 +1,45 @@
 use gdk;
 use gettextrs::gettext;
+use glib::clone;
 use gtk;
 use gtk::prelude::*;
 use log::error;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::with_main_ctrl;
+use crate::spawn;
 
-use super::{MainController, UIDispatcher};
+use super::{MainController, UIDispatcher, UIEventSender, VideoController};
 
 pub struct VideoDispatcher;
 impl UIDispatcher for VideoDispatcher {
-    fn setup(_gtk_app: &gtk::Application, main_ctrl_rc: &Rc<RefCell<MainController>>) {
-        let main_ctrl = main_ctrl_rc.borrow();
+    type Controller = VideoController;
 
-        match main_ctrl.video_ctrl.video_output {
+    fn setup(
+        video_ctrl: &mut VideoController,
+        main_ctrl_rc: &Rc<RefCell<MainController>>,
+        _app: &gtk::Application,
+        _ui_event: &UIEventSender,
+    ) {
+        match video_ctrl.video_output {
             Some(ref video_output) => {
                 // discard GStreamer defined navigation events on widget
                 video_output
                     .widget
                     .set_events(gdk::EventMask::BUTTON_PRESS_MASK);
 
-                main_ctrl
-                    .video_ctrl
-                    .container
-                    .connect_button_press_event(with_main_ctrl!(
-                        main_ctrl_rc => move |&mut main_ctrl, _, _event_button| {
-                            main_ctrl.play_pause();
-                            Inhibit(true)
-                        }
-                    ));
+                video_ctrl.container.connect_button_press_event(
+                    clone!(@strong main_ctrl_rc => move |_, _| {
+                        main_ctrl_rc.borrow_mut().play_pause();
+                        Inhibit(true)
+                    }),
+                );
             }
             None => {
                 error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
-                let container_clone = main_ctrl.video_ctrl.container.clone();
-                gtk::idle_add(move || {
-                    container_clone.hide();
-                    glib::Continue(false)
+                let container = video_ctrl.container.clone();
+                spawn!(async move {
+                    container.hide();
                 });
             }
         };

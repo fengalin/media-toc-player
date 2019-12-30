@@ -1,13 +1,14 @@
 # List of source files containing translatable strings.
 # Please keep this file sorted alphabetically.
-assets/ui/media-toc-player.ui
+res/ui/media-toc-player.ui
 src/application/command_line.rs
 src/application/configuration.rs
 src/main.rs
-src/media/context.rs
+src/media/playback_pipeline.rs
 src/metadata/media_info.rs
 src/metadata/mkvmerge_text_format.rs
 src/ui/chapter_tree_manager.rs
 src/ui/info_controller.rs
 src/ui/main_controller.rs
+src/ui/main_dispatcher.rs
 src/ui/streams_controller.rs

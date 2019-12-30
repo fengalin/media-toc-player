@@ -6,7 +6,7 @@ use gtk::prelude::*;
 
 use std::sync::Arc;
 
-use crate::{application::CommandLineArguments, media::PlaybackPipeline, metadata::Stream};
+use crate::{media::PlaybackPipeline, metadata::Stream, spawn};
 
 use super::UIController;
 
@@ -29,6 +29,8 @@ const AUDIO_CHANNELS_COL: u32 = 6;
 const TEXT_FORMAT_COL: u32 = 5;
 
 pub struct StreamsController {
+    pub(super) page: gtk::Grid,
+
     pub(super) video_treeview: gtk::TreeView,
     pub(super) video_store: gtk::ListStore,
     pub(super) video_selected: Option<Arc<str>>,
@@ -43,11 +45,6 @@ pub struct StreamsController {
 }
 
 impl UIController for StreamsController {
-    fn setup(&mut self, _args: &CommandLineArguments) {
-        self.cleanup();
-        self.init_treeviews();
-    }
-
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         {
             let mut info = pipeline.info.write().unwrap();
@@ -64,13 +61,16 @@ impl UIController for StreamsController {
                 let stream = info.streams.get_video_mut(stream_id).unwrap();
                 let iter = self.add_stream(&self.video_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Some(width) = caps_structure.get::<i32>("width") {
+                if let Ok(Some(width)) = caps_structure.get::<i32>("width") {
                     self.video_store
-                        .set_value(&iter, VIDEO_WIDTH_COL, &gtk::Value::from(&width));
+                        .set_value(&iter, VIDEO_WIDTH_COL, &glib::Value::from(&width));
                 }
-                if let Some(height) = caps_structure.get::<i32>("height") {
-                    self.video_store
-                        .set_value(&iter, VIDEO_HEIGHT_COL, &gtk::Value::from(&height));
+                if let Ok(Some(height)) = caps_structure.get::<i32>("height") {
+                    self.video_store.set_value(
+                        &iter,
+                        VIDEO_HEIGHT_COL,
+                        &glib::Value::from(&height),
+                    );
                 }
             }
 
@@ -86,15 +86,15 @@ impl UIController for StreamsController {
                 let stream = info.streams.get_audio_mut(stream_id).unwrap();
                 let iter = self.add_stream(&self.audio_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Some(rate) = caps_structure.get::<i32>("rate") {
+                if let Ok(Some(rate)) = caps_structure.get::<i32>("rate") {
                     self.audio_store
-                        .set_value(&iter, AUDIO_RATE_COL, &gtk::Value::from(&rate));
+                        .set_value(&iter, AUDIO_RATE_COL, &glib::Value::from(&rate));
                 }
-                if let Some(channels) = caps_structure.get::<i32>("channels") {
+                if let Ok(Some(channels)) = caps_structure.get::<i32>("channels") {
                     self.audio_store.set_value(
                         &iter,
                         AUDIO_CHANNELS_COL,
-                        &gtk::Value::from(&channels),
+                        &glib::Value::from(&channels),
                     );
                 }
             }
@@ -111,9 +111,9 @@ impl UIController for StreamsController {
                 let stream = info.streams.get_text_mut(stream_id).unwrap();
                 let iter = self.add_stream(&self.text_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Some(format) = caps_structure.get::<&str>("format") {
+                if let Ok(Some(format)) = caps_structure.get::<&str>("format") {
                     self.text_store
-                        .set_value(&iter, TEXT_FORMAT_COL, &gtk::Value::from(&format));
+                        .set_value(&iter, TEXT_FORMAT_COL, &glib::Value::from(&format));
                 }
             }
         }
@@ -142,11 +142,22 @@ impl UIController for StreamsController {
         self.text_store.clear();
         self.text_selected = None;
     }
+
+    fn grab_focus(&self) {
+        // grab focus asynchronoulsy because it triggers the `cursor_changed` signal
+        // which needs to check if the stream has changed
+        let audio_treeview = self.audio_treeview.clone();
+        spawn!(async move {
+            audio_treeview.grab_focus();
+        });
+    }
 }
 
 impl StreamsController {
     pub fn new(builder: &gtk::Builder) -> Self {
-        StreamsController {
+        let mut ctrl = StreamsController {
+            page: builder.get_object("streams-grid").unwrap(),
+
             video_treeview: builder.get_object("video_streams-treeview").unwrap(),
             video_store: builder.get_object("video_streams-liststore").unwrap(),
             video_selected: None,
@@ -158,7 +169,12 @@ impl StreamsController {
             text_treeview: builder.get_object("text_streams-treeview").unwrap(),
             text_store: builder.get_object("text_streams-liststore").unwrap(),
             text_selected: None,
-        }
+        };
+
+        ctrl.cleanup();
+        ctrl.init_treeviews();
+
+        ctrl
     }
 
     pub fn get_selected_streams(&self) -> Vec<Arc<str>> {
@@ -194,19 +210,23 @@ impl StreamsController {
             .tags
             .get_index::<gst::tags::LanguageName>(0)
             .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
-            .and_then(|lang_tag| lang_tag.get())
+            .and_then(glib::TypedValue::get)
             .unwrap_or("-");
-        store.set_value(&iter, LANGUAGE_COL, &gtk::Value::from(lang));
+        store.set_value(&iter, LANGUAGE_COL, &glib::Value::from(lang));
 
         if let Some(comment) = stream
             .tags
             .get_index::<gst::tags::Comment>(0)
-            .and_then(|tag| tag.get())
+            .and_then(glib::TypedValue::get)
         {
-            store.set_value(&iter, COMMENT_COL, &gtk::Value::from(comment));
+            store.set_value(&iter, COMMENT_COL, &glib::Value::from(comment));
         }
 
-        store.set_value(&iter, CODEC_COL, &gtk::Value::from(&stream.codec_printable));
+        store.set_value(
+            &iter,
+            CODEC_COL,
+            &glib::Value::from(&stream.codec_printable),
+        );
 
         iter
     }
@@ -215,6 +235,7 @@ impl StreamsController {
         store
             .get_value(iter, STREAM_ID_COL as i32)
             .get::<String>()
+            .unwrap()
             .unwrap()
             .into()
     }

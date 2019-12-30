@@ -2,7 +2,7 @@ use gettextrs::gettext;
 use log::error;
 
 mod application;
-use crate::application::{init_locale, run};
+use application::{get_command_line, init_locale};
 mod media;
 mod metadata;
 mod ui;
@@ -16,7 +16,7 @@ fn main() {
     let is_gtk_ok = gtk::init().is_ok();
 
     if is_gtk_ok {
-        run();
+        ui::run(get_command_line());
     } else {
         error!("{}", gettext("Failed to initialize GTK"));
     }
