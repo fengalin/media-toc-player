@@ -230,7 +230,7 @@ impl MainController {
         self.pipeline.as_ref().unwrap().seek(position, flags);
     }
 
-    pub fn get_current_ts(&mut self) -> Timestamp {
+    pub fn get_current_ts(&mut self) -> Option<Timestamp> {
         self.pipeline.as_mut().unwrap().get_current_ts()
     }
 
@@ -238,8 +238,9 @@ impl MainController {
         match self.state {
             ControllerState::Seeking => (),
             _ => {
-                let ts = self.get_current_ts();
-                self.info_ctrl.tick(ts, self.state);
+                if let Some(ts) = self.get_current_ts() {
+                    self.info_ctrl.tick(ts, self.state);
+                }
             }
         }
     }
