@@ -1,8 +1,5 @@
-use cairo;
 use gettextrs::gettext;
-use gio;
 use gstreamer as gst;
-use gtk;
 use gtk::prelude::*;
 use log::{info, warn};
 

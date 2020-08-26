@@ -4,9 +4,7 @@ use futures::prelude::*;
 
 use gettextrs::{gettext, ngettext};
 
-use glib;
 use gstreamer as gst;
-use gtk;
 use gtk::prelude::*;
 
 use log::{debug, error};
@@ -69,7 +67,7 @@ pub struct MainController {
 impl MainController {
     pub fn setup(app: &gtk::Application, args: &CommandLineArguments) {
         let builder =
-            gtk::Builder::new_from_resource(&format!("{}/{}", *APP_PATH, "media-toc-player.ui"));
+            gtk::Builder::from_resource(&format!("{}/{}", *APP_PATH, "media-toc-player.ui"));
 
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(Some(app));
@@ -185,7 +183,7 @@ impl MainController {
             config.save();
         }
 
-        self.window.destroy();
+        self.window.close();
     }
 
     pub fn play_pause(&mut self) {

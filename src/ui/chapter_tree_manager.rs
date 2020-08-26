@@ -3,7 +3,6 @@ use bitflags::bitflags;
 use gettextrs::gettext;
 use gstreamer as gst;
 
-use gtk;
 use gtk::prelude::*;
 
 use std::{borrow::Cow, fmt};

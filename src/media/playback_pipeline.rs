@@ -6,8 +6,6 @@ use gstreamer as gst;
 
 use gstreamer::{prelude::*, ClockTime};
 
-use glib;
-
 use log::{info, warn};
 
 use std::{
@@ -96,7 +94,7 @@ impl PlaybackPipeline {
     }
 
     pub fn get_current_ts(&self) -> Option<Timestamp> {
-        let mut position_query = gst::Query::new_position(gst::Format::Time);
+        let mut position_query = gst::query::Position::new(gst::Format::Time);
         self.pipeline.query(&mut position_query);
         let position = position_query.get_result().get_value();
         if position < 0 {
@@ -143,7 +141,7 @@ impl PlaybackPipeline {
 
     pub fn select_streams(&self, stream_ids: &[Arc<str>]) {
         let stream_id_vec: Vec<&str> = stream_ids.iter().map(AsRef::as_ref).collect();
-        let select_streams_evt = gst::Event::new_select_streams(&stream_id_vec).build();
+        let select_streams_evt = gst::event::SelectStreams::new(&stream_id_vec);
         self.decodebin.send_event(select_streams_evt);
 
         {
