@@ -31,6 +31,7 @@ pub struct InfoController {
     container_lbl: gtk::Label,
     audio_codec_lbl: gtk::Label,
     video_codec_lbl: gtk::Label,
+    position_lbl: gtk::Label,
     duration_lbl: gtk::Label,
 
     pub(super) timeline_scale: gtk::Scale,
@@ -161,6 +162,7 @@ impl UIController for InfoController {
         self.container_lbl.set_text("");
         self.audio_codec_lbl.set_text("");
         self.video_codec_lbl.set_text("");
+        self.position_lbl.set_text("00:00.000");
         self.duration_lbl.set_text("00:00.000");
         self.thumbnail = None;
         self.chapter_treeview.get_selection().unselect_all();
@@ -229,6 +231,7 @@ impl InfoController {
             container_lbl: builder.get_object("container-lbl").unwrap(),
             audio_codec_lbl: builder.get_object("audio_codec-lbl").unwrap(),
             video_codec_lbl: builder.get_object("video_codec-lbl").unwrap(),
+            position_lbl: builder.get_object("position-lbl").unwrap(),
             duration_lbl: builder.get_object("duration-lbl").unwrap(),
 
             timeline_scale: builder.get_object("timeline-scale").unwrap(),
@@ -301,6 +304,8 @@ impl InfoController {
 
     pub fn tick(&mut self, ts: Timestamp, state: ControllerState) {
         self.timeline_scale.set_value(ts.as_f64());
+        self.position_lbl
+            .set_text(&Timestamp4Humans::from_nano(ts.as_u64()).to_string());
 
         let mut position_status = self.chapter_manager.update_ts(ts);
 
