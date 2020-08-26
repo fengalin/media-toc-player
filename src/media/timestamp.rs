@@ -25,6 +25,10 @@ impl Timestamp {
     pub fn as_u64(self) -> u64 {
         self.0
     }
+
+    pub fn saturating_sub(self, rhs: Duration) -> Self {
+        Timestamp(self.0.saturating_sub(rhs.as_u64()))
+    }
 }
 
 impl From<u64> for Timestamp {

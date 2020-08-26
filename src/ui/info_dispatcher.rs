@@ -10,6 +10,7 @@ use crate::{application::CONFIG, media::Timestamp, metadata::Duration};
 use super::{InfoController, MainController, UIDispatcher, UIEventSender, UIFocusContext};
 
 const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
+const SEEK_STEP: Duration = Duration::from_nanos(2_500_000_000);
 
 pub struct InfoDispatcher;
 impl UIDispatcher for InfoDispatcher {
@@ -137,6 +138,37 @@ impl UIDispatcher for InfoDispatcher {
                 }
             }
         ));
+
+        // Register Step forward action
+        let step_forward = gio::SimpleAction::new("step_forward", None);
+        app.add_action(&step_forward);
+        step_forward.connect_activate(clone!(
+            @weak main_ctrl_rc => move |_, _| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
+
+                if let Some(current_ts) = main_ctrl.get_current_ts() {
+                    let seek_target = current_ts + SEEK_STEP;
+                    main_ctrl.seek(seek_target, gst::SeekFlags::ACCURATE);
+                }
+            }
+        ));
+        app.set_accels_for_action("app.step_forward", &["Right"]);
+
+        // Register Step back action
+        let step_back = gio::SimpleAction::new("step_back", None);
+        app.add_action(&step_back);
+        step_back.connect_activate(clone!(
+            @weak main_ctrl_rc => move |_, _| {
+                let mut main_ctrl = main_ctrl_rc.borrow_mut();
+
+                if let Some(current_ts) = main_ctrl.get_current_ts() {
+                    let seek_pos = current_ts.saturating_sub(SEEK_STEP);
+                    main_ctrl.seek(seek_pos, gst::SeekFlags::ACCURATE);
+                }
+            }
+        ));
+
+        app.set_accels_for_action("app.step_back", &["Left"]);
     }
 
     fn bind_accels_for(ctx: UIFocusContext, app: &gtk::Application) {
