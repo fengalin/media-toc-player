@@ -36,7 +36,7 @@ impl MainDispatcher {
         // About
         let about = gio::SimpleAction::new("about", None);
         app.add_action(&about);
-        about.connect_activate(clone!(@strong main_ctrl_rc => move |_, _| {
+        about.connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
             main_ctrl_rc.borrow().about();
         }));
         app.set_accels_for_action("app.about", &["<Ctrl>A"]);
@@ -45,18 +45,18 @@ impl MainDispatcher {
         // Quit
         let quit = gio::SimpleAction::new("quit", None);
         app.add_action(&quit);
-        quit.connect_activate(clone!(@strong main_ctrl_rc => move |_, _| {
+        quit.connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
             main_ctrl_rc.borrow_mut().quit();
         }));
         app.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
         app_section.append(Some(&gettext("Quit")), Some("app.quit"));
 
-        main_ctrl
-            .window
-            .connect_delete_event(clone!(@strong main_ctrl_rc => move |_, _| {
+        main_ctrl.window.connect_delete_event(
+            clone!(@weak main_ctrl_rc => @default-return Inhibit(false), move |_, _| {
                 main_ctrl_rc.borrow_mut().quit();
                 Inhibit(false)
-            }));
+            }),
+        );
 
         let ui_event = main_ctrl.ui_event().clone();
         if gstreamer::init().is_ok() {
@@ -70,23 +70,24 @@ impl MainDispatcher {
             InfoDispatcher::setup(&mut main_ctrl.info_ctrl, main_ctrl_rc, &app, &ui_event);
             StreamsDispatcher::setup(&mut main_ctrl.streams_ctrl, main_ctrl_rc, &app, &ui_event);
 
-            main_ctrl.new_media_event_handler =
-                Some(Box::new(clone!(@strong main_ctrl_rc => move |receiver| {
-                    let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
-                    async move {
-                        let mut receiver = receiver;
-                        while let Some(event) =
-                            async_mpsc::Receiver::<MediaEvent>::next(&mut receiver).await
-                        {
-                            if main_ctrl_rc.borrow_mut().handle_media_event(event).is_err() {
-                                break;
-                            }
+            main_ctrl.new_media_event_handler = Some(Box::new(clone!(@weak main_ctrl_rc =>
+            @default-panic, move |receiver| {
+                let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
+                async move {
+                    let mut receiver = receiver;
+                    while let Some(event) =
+                        async_mpsc::Receiver::<MediaEvent>::next(&mut receiver).await
+                    {
+                        if main_ctrl_rc.borrow_mut().handle_media_event(event).is_err() {
+                            break;
                         }
-                        debug!("Media event handler terminated");
-                    }.boxed_local()
-                })));
+                    }
+                    debug!("Media event handler terminated");
+                }.boxed_local()
+            })));
 
-            main_ctrl.new_tracker = Some(Box::new(clone!(@strong main_ctrl_rc => move || {
+            main_ctrl.new_tracker = Some(Box::new(clone!(@weak main_ctrl_rc =>
+            @default-panic, move || {
                 let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
                 async move {
                     loop {
@@ -106,7 +107,7 @@ impl MainDispatcher {
             // Register Open action
             let open = gio::SimpleAction::new("open", None);
             app.add_action(&open);
-            open.connect_activate(clone!(@strong main_ctrl_rc => move |_, _| {
+            open.connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
                 let mut main_ctrl = main_ctrl_rc.borrow_mut();
                 match main_ctrl.state {
                     ControllerState::Playing | ControllerState::EOS => {
@@ -124,7 +125,7 @@ impl MainDispatcher {
             // Register Play/Pause action
             let play_pause = gio::SimpleAction::new("play_pause", None);
             app.add_action(&play_pause);
-            play_pause.connect_activate(clone!(@strong main_ctrl_rc => move |_, _| {
+            play_pause.connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
                 main_ctrl_rc.borrow_mut().play_pause();
             }));
             main_ctrl.play_pause_btn.set_sensitive(true);
