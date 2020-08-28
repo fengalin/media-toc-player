@@ -330,22 +330,21 @@ impl PlaybackPipeline {
                             }
                         }
                     }
-                    gst::MessageView::StreamsSelected(msg_streams_selected) => match pipeline_state
-                    {
+                    gst::MessageView::StreamCollection(stream_collection) => {
+                        let info = &mut info_arc_mtx.write().unwrap();
+
+                        stream_collection
+                            .get_stream_collection()
+                            .iter()
+                            .for_each(|stream| info.add_stream(&stream));
+                    }
+                    gst::MessageView::StreamsSelected(_) => match pipeline_state {
                         PipelineState::Playable(_) => {
                             sender.try_send(MediaEvent::StreamsSelected).unwrap();
                         }
                         PipelineState::None => {
-                            let stream_collection = msg_streams_selected.get_stream_collection();
                             let has_usable_streams = {
-                                let info = &mut info_arc_mtx
-                                    .write()
-                                    .expect("Failed to lock media `info` in `StreamsSelected`");
-
-                                stream_collection
-                                    .iter()
-                                    .for_each(|stream| info.add_stream(&stream));
-
+                                let info = info_arc_mtx.read().unwrap();
                                 info.streams.is_audio_selected() || info.streams.is_video_selected()
                             };
 
