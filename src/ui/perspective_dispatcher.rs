@@ -55,9 +55,8 @@ impl UIDispatcher for PerspectiveDispatcher {
 
         let popover_box = gtk_downcast!(perspective_ctrl.popover, 0, gtk::Box, "popover");
 
-        let mut index = 0;
         let stack_children = perspective_ctrl.stack.get_children();
-        for perspective_box_child in popover_box.get_children() {
+        for (index, perspective_box_child) in popover_box.get_children().into_iter().enumerate() {
             let stack_child = stack_children.get(index).unwrap_or_else(|| {
                 panic!("PerspectiveController no stack child for index {:?}", index)
             });
@@ -135,8 +134,6 @@ impl UIDispatcher for PerspectiveDispatcher {
                     button.connect_clicked(move |_| event());
                 }
             }
-
-            index += 1;
         }
     }
 }
