@@ -5,9 +5,7 @@ use log::error;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::spawn;
-
-use super::{MainController, UIDispatcher, UIEventSender, VideoController};
+use super::{spawn, MainController, UIDispatcher, UIEventSender, VideoController};
 
 pub struct VideoDispatcher;
 impl UIDispatcher for VideoDispatcher {
@@ -15,9 +13,9 @@ impl UIDispatcher for VideoDispatcher {
 
     fn setup(
         video_ctrl: &mut VideoController,
-        main_ctrl_rc: &Rc<RefCell<MainController>>,
+        _main_ctrl_rc: &Rc<RefCell<MainController>>,
         _app: &gtk::Application,
-        _ui_event: &UIEventSender,
+        ui_event: &UIEventSender,
     ) {
         match video_ctrl.video_output {
             Some(ref video_output) => {
@@ -27,8 +25,8 @@ impl UIDispatcher for VideoDispatcher {
                     .set_events(gdk::EventMask::BUTTON_PRESS_MASK);
 
                 video_ctrl.container.connect_button_press_event(
-                    clone!(@weak main_ctrl_rc => @default-return Inhibit(true), move |_, _| {
-                        main_ctrl_rc.borrow_mut().play_pause();
+                    clone!(@strong ui_event => move |_, _| {
+                        ui_event.play_pause();
                         Inhibit(true)
                     }),
                 );
@@ -36,7 +34,7 @@ impl UIDispatcher for VideoDispatcher {
             None => {
                 error!("{}", gettext("Couldn't find GStreamer GTK video sink."));
                 let container = video_ctrl.container.clone();
-                spawn!(async move {
+                spawn(async move {
                     container.hide();
                 });
             }

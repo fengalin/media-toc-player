@@ -2,9 +2,9 @@ use gtk::prelude::*;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::spawn;
-
-use super::{MainController, StreamsController, UIDispatcher, UIEventSender, UIFocusContext};
+use super::{
+    spawn, MainController, StreamsController, UIDispatcher, UIEventSender, UIFocusContext,
+};
 
 macro_rules! on_stream_selected(
     ($main_ctrl_rc:expr, $store:ident, $selected:ident) => (
@@ -34,8 +34,8 @@ macro_rules! on_stream_selected(
 
                             // Asynchronoulsy notify the main controller
                             let main_ctrl_rc = Rc::clone(&main_ctrl_rc_cb);
-                            spawn!(async move {
-                                main_ctrl_rc.borrow_mut().select_streams(&streams);
+                            spawn(async move {
+                                main_ctrl_rc.borrow_mut().select_streams(&streams).await;
                             });
                         }
                     }

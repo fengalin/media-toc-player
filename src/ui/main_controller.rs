@@ -1,4 +1,3 @@
-use futures::channel::mpsc as async_mpsc;
 use futures::future::{abortable, AbortHandle, LocalBoxFuture};
 use futures::prelude::*;
 
@@ -7,19 +6,16 @@ use gettextrs::{gettext, ngettext};
 use gstreamer as gst;
 use gtk::prelude::*;
 
-use log::{debug, error};
-
-use std::{borrow::ToOwned, cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
+use std::{borrow::ToOwned, cell::RefCell, path::PathBuf, rc::Rc, sync::Arc};
 
 use crate::{
     application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG},
-    media::{MediaEvent, PlaybackPipeline, PlaybackState, Timestamp},
-    spawn,
+    media::{MediaMessage, PlaybackPipeline, SeekError, Timestamp},
 };
 
 use super::{
-    InfoController, MainDispatcher, MediaEventReceiver, PerspectiveController, StreamsController,
-    UIController, UIEventHandler, UIEventSender, VideoController,
+    spawn, InfoController, MainDispatcher, PerspectiveController, StreamsController, UIController,
+    UIEventHandler, UIEventSender, VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -27,12 +23,10 @@ const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ControllerState {
-    EOS,
+    Eos,
     Paused,
-    PendingSelectMedia,
     PendingSelectMediaDecision,
     Playing,
-    Seeking,
     Stopped,
 }
 
@@ -53,12 +47,9 @@ pub struct MainController {
     pub(super) streams_ctrl: StreamsController,
 
     pub(super) pipeline: Option<PlaybackPipeline>,
-    missing_plugins: HashSet<String>,
     pub(super) state: ControllerState,
 
-    pub(super) new_media_event_handler:
-        Option<Box<dyn Fn(MediaEventReceiver) -> LocalBoxFuture<'static, ()>>>,
-    media_event_abort_handle: Option<AbortHandle>,
+    media_msg_abort_handle: Option<AbortHandle>,
 
     pub(super) new_tracker: Option<Box<dyn Fn() -> LocalBoxFuture<'static, ()>>>,
     tracker_abort_handle: Option<AbortHandle>,
@@ -109,11 +100,9 @@ impl MainController {
             streams_ctrl: StreamsController::new(&builder),
 
             pipeline: None,
-            missing_plugins: HashSet::<String>::new(),
             state: ControllerState::Stopped,
 
-            new_media_event_handler: None,
-            media_event_abort_handle: None,
+            media_msg_abort_handle: None,
 
             new_tracker: None,
             tracker_abort_handle: None,
@@ -169,11 +158,11 @@ impl MainController {
     }
 
     pub fn quit(&mut self) {
-        if let Some(pipeline) = self.pipeline.take() {
-            pipeline.stop();
-        }
-        self.abort_media_event_handler();
         self.abort_tracker();
+
+        if let Some(mut pipeline) = self.pipeline.take() {
+            let _ = pipeline.stop();
+        }
 
         {
             let size = self.window.get_size();
@@ -186,220 +175,85 @@ impl MainController {
         self.window.close();
     }
 
-    pub fn play_pause(&mut self) {
-        let pipeline = match self.pipeline.as_mut() {
-            Some(pipeline) => pipeline,
-            None => {
-                self.select_media();
-                return;
+    pub async fn play_pause(&mut self) {
+        match self.state {
+            ControllerState::Paused => {
+                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
+                self.state = ControllerState::Playing;
+                self.pipeline.as_mut().unwrap().play().unwrap();
+
+                self.spawn_tracker();
             }
-        };
+            ControllerState::Playing => {
+                self.pipeline.as_mut().unwrap().pause().await.unwrap();
+                self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
+                self.abort_tracker();
+                self.state = ControllerState::Paused;
+            }
+            ControllerState::Eos => {
+                // Restart the stream from the begining
+                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
+                self.state = ControllerState::Playing;
 
-        if self.state != ControllerState::EOS {
-            match pipeline.get_state() {
-                gst::State::Paused => {
-                    self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                    self.state = ControllerState::Playing;
-                    pipeline.play().unwrap();
-                    self.spawn_tracker();
-                }
-                gst::State::Playing => {
-                    pipeline.pause().unwrap();
-                    self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                    self.abort_tracker();
-                    self.state = ControllerState::Paused;
-                }
-                _ => {
-                    self.select_media();
-                }
-            };
-        } else {
-            // Restart the stream from the begining
-            self.seek(Timestamp::default(), gst::SeekFlags::ACCURATE);
+                self.seek(Timestamp::default(), gst::SeekFlags::ACCURATE)
+                    .await;
+
+                self.pipeline.as_mut().unwrap().play().unwrap();
+
+                self.spawn_tracker();
+            }
+            ControllerState::Stopped => self.select_media().await,
+            ControllerState::PendingSelectMediaDecision => (),
         }
     }
 
-    pub fn seek(&mut self, position: Timestamp, flags: gst::SeekFlags) {
-        self.info_ctrl.seek(position);
-        if self.state == ControllerState::EOS {
-            self.spawn_tracker();
+    pub async fn seek(&mut self, position: Timestamp, flags: gst::SeekFlags) {
+        match self.state {
+            ControllerState::Playing | ControllerState::Paused | ControllerState::Eos => {
+                let ret = self.pipeline.as_mut().unwrap().seek(position, flags).await;
+                self.info_ctrl.seek(position, self.state);
+
+                if let Err(SeekError::Eos) = ret {
+                    self.ui_event.eos();
+                }
+            }
+            ControllerState::Stopped => {
+                self.select_media().await;
+            }
+            _ => (),
         }
-        self.state = ControllerState::Seeking;
-        self.pipeline.as_ref().unwrap().seek(position, flags);
     }
 
-    pub fn get_current_ts(&mut self) -> Option<Timestamp> {
-        self.pipeline.as_mut().unwrap().get_current_ts()
+    pub fn current_ts(&mut self) -> Option<Timestamp> {
+        self.pipeline.as_mut().unwrap().current_ts()
     }
 
     pub fn tick(&mut self) {
-        match self.state {
-            ControllerState::Seeking => (),
-            _ => {
-                if let Some(ts) = self.get_current_ts() {
-                    self.info_ctrl.tick(ts, self.state);
-                }
-            }
+        if let Some(ts) = self.current_ts() {
+            self.info_ctrl.tick(ts, self.state);
         }
     }
 
-    pub fn select_streams(&mut self, stream_ids: &[Arc<str>]) {
-        self.pipeline.as_ref().unwrap().select_streams(stream_ids);
-        // In Playing state, wait for the notification from the pipeline
-        // Otherwise, update immediately
-        if self.state != ControllerState::Playing {
-            self.streams_selected();
-        }
+    pub async fn select_streams(&mut self, stream_ids: &[Arc<str>]) {
+        self.pipeline
+            .as_mut()
+            .unwrap()
+            .select_streams(stream_ids)
+            .await;
+        self.streams_selected();
     }
 
     pub fn streams_selected(&mut self) {
-        let info = self.pipeline.as_ref().unwrap().info.read().unwrap();
-        self.info_ctrl.streams_changed(&info);
-        self.perspective_ctrl.streams_changed(&info);
-        self.video_ctrl.streams_changed(&info);
+        let info = &self.pipeline.as_ref().unwrap().info;
+        self.info_ctrl.streams_changed(info);
+        self.perspective_ctrl.streams_changed(info);
+        self.video_ctrl.streams_changed(info);
     }
 
-    pub fn hold(&mut self) {
-        self.ui_event.set_cursor_waiting();
+    pub fn eos(&mut self) {
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-
-        if let Some(pipeline) = self.pipeline.as_mut() {
-            pipeline.pause().unwrap();
-        };
-    }
-
-    fn check_missing_plugins(&self) -> Option<String> {
-        if !self.missing_plugins.is_empty() {
-            let mut missing_nb = 0;
-            let mut missing_list = String::new();
-
-            self.missing_plugins.iter().for_each(|missing_plugin| {
-                if missing_nb > 0 {
-                    missing_list += ", ";
-                }
-
-                missing_list += missing_plugin;
-                missing_nb += 1;
-            });
-            let message = ngettext("Missing plugin: {}", "Missing plugins: {}", missing_nb)
-                .replacen("{}", &missing_list, 1);
-
-            Some(message)
-        } else {
-            None
-        }
-    }
-
-    fn spawn_media_event_handler(&mut self) -> async_mpsc::Sender<MediaEvent> {
-        let (sender, receiver) = async_mpsc::channel(1);
-
-        let (abortable_event_handler, abort_handle) =
-            abortable(self.new_media_event_handler.as_ref().unwrap()(receiver));
-        spawn!(abortable_event_handler.map(drop));
-        self.media_event_abort_handle = Some(abort_handle);
-
-        sender
-    }
-
-    fn abort_media_event_handler(&mut self) {
-        if let Some(abort_handle) = self.media_event_abort_handle.take() {
-            abort_handle.abort();
-        }
-    }
-
-    pub fn handle_media_event(&mut self, event: MediaEvent) -> Result<(), ()> {
-        let mut keep_going = true;
-
-        match event {
-            MediaEvent::AsyncDone(playback_state) => {
-                if let ControllerState::Seeking = self.state {
-                    self.state = match playback_state {
-                        PlaybackState::Playing => ControllerState::Playing,
-                        PlaybackState::Paused => ControllerState::Paused,
-                    };
-                }
-            }
-            MediaEvent::InitDone => {
-                debug!("received `InitDone`");
-                {
-                    let pipeline = self.pipeline.as_ref().unwrap();
-
-                    self.header_bar
-                        .set_subtitle(Some(pipeline.info.read().unwrap().file_name.as_str()));
-
-                    self.info_ctrl.new_media(&pipeline);
-                    self.perspective_ctrl.new_media(&pipeline);
-                    self.streams_ctrl.new_media(&pipeline);
-                    self.video_ctrl.new_media(&pipeline);
-                }
-
-                self.streams_selected();
-
-                if let Some(message) = self.check_missing_plugins() {
-                    self.ui_event.show_error(message);
-                }
-
-                self.ui_event.reset_cursor();
-                self.state = ControllerState::Paused;
-            }
-            MediaEvent::MissingPlugin(plugin) => {
-                error!(
-                    "{}",
-                    gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
-                );
-                self.missing_plugins.insert(plugin);
-            }
-            MediaEvent::ReadyToRefresh => match &self.state {
-                ControllerState::Playing => (),
-                ControllerState::Paused => (),
-                ControllerState::PendingSelectMedia => {
-                    self.select_media();
-                }
-                _ => (),
-            },
-            MediaEvent::StreamsSelected => self.streams_selected(),
-            MediaEvent::Eos => {
-                self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-                self.state = ControllerState::EOS;
-                self.abort_tracker();
-            }
-            MediaEvent::FailedToOpenMedia(error) => {
-                self.pipeline = None;
-                self.state = ControllerState::Stopped;
-                self.ui_event.reset_cursor();
-
-                keep_going = false;
-
-                let mut error = gettext("Error opening file.\n\n{}").replacen("{}", &error, 1);
-                if let Some(message) = self.check_missing_plugins() {
-                    error += "\n\n";
-                    error += &message;
-                }
-                self.ui_event.show_error(error);
-            }
-            MediaEvent::GLSinkError => {
-                self.pipeline = None;
-                self.state = ControllerState::Stopped;
-                self.ui_event.reset_cursor();
-
-                let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");
-                config.media.is_gl_disabled = true;
-                config.save();
-
-                keep_going = false;
-
-                self.ui_event.show_error(gettext(
-"Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
-                ));
-            }
-        }
-
-        if keep_going {
-            Ok(())
-        } else {
-            self.abort_tracker();
-            Err(())
-        }
+        self.state = ControllerState::Eos;
+        self.abort_tracker();
     }
 
     fn spawn_tracker(&mut self) {
@@ -408,7 +262,7 @@ impl MainController {
         }
 
         let (abortable_tracker, abort_handle) = abortable(self.new_tracker.as_ref().unwrap()());
-        spawn!(abortable_tracker.map(drop));
+        spawn(abortable_tracker.map(drop));
         self.tracker_abort_handle = Some(abort_handle);
     }
 
@@ -418,8 +272,23 @@ impl MainController {
         }
     }
 
-    pub fn select_media(&mut self) {
+    pub async fn hold(&mut self) {
+        self.ui_event.set_cursor_waiting();
+        self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
+
+        if let Some(pipeline) = self.pipeline.as_mut() {
+            pipeline.pause().await.unwrap();
+        };
+    }
+
+    pub async fn select_media(&mut self) {
         self.abort_tracker();
+
+        match self.state {
+            ControllerState::Playing | ControllerState::Eos => self.hold().await,
+            _ => (),
+        }
+
         self.state = ControllerState::PendingSelectMediaDecision;
         self.ui_event.hide_info_bar();
 
@@ -429,12 +298,14 @@ impl MainController {
         self.file_dlg.show();
     }
 
-    pub fn open_media(&mut self, path: PathBuf) {
-        if let Some(pipeline) = self.pipeline.take() {
-            pipeline.stop();
+    pub async fn open_media(&mut self, path: PathBuf) {
+        if let Some(mut pipeline) = self.pipeline.take() {
+            pipeline.stop().unwrap();
         }
 
-        self.abort_media_event_handler();
+        if let Some(abort_handle) = self.media_msg_abort_handle.take() {
+            abort_handle.abort();
+        }
 
         self.info_ctrl.cleanup();
         self.video_ctrl.cleanup();
@@ -443,18 +314,90 @@ impl MainController {
         self.header_bar.set_subtitle(Some(""));
 
         self.state = ControllerState::Stopped;
-        self.missing_plugins.clear();
-        let sender = self.spawn_media_event_handler();
 
-        match PlaybackPipeline::try_new(path.as_ref(), &self.video_ctrl.get_video_sink(), sender) {
-            Ok(pipeline) => {
+        match PlaybackPipeline::try_new(path.as_ref(), &self.video_ctrl.get_video_sink()).await {
+            Ok(mut pipeline) => {
+                if !pipeline.info.streams.is_audio_selected()
+                    && !pipeline.info.streams.is_video_selected()
+                {
+                    self.ui_event.reset_cursor();
+                    let error = gettext("Error opening file.\n\n{}")
+                        .replace("{}", &gettext("No usable streams could be found."));
+                    self.ui_event.show_error(error);
+
+                    return;
+                }
+
                 CONFIG.write().unwrap().media.last_path = path.parent().map(ToOwned::to_owned);
+
+                self.header_bar
+                    .set_subtitle(Some(pipeline.info.file_name.as_str()));
+
+                self.info_ctrl.new_media(&pipeline);
+                self.perspective_ctrl.new_media(&pipeline);
+                self.streams_ctrl.new_media(&pipeline);
+                self.video_ctrl.new_media(&pipeline);
+
+                let ui_event = self.ui_event.clone();
+                let mut media_msg_rx = pipeline.media_msg_rx.take().unwrap();
+                let (media_msg_handler, abort_handle) = abortable(async move {
+                    while let Some(msg) = media_msg_rx.next().await {
+                        match msg {
+                            MediaMessage::Eos => ui_event.eos(),
+                            MediaMessage::Error(err) => ui_event.show_error(err),
+                        }
+                    }
+                });
+                self.media_msg_abort_handle = Some(abort_handle);
+                spawn(media_msg_handler.map(|_| ()));
+
                 self.pipeline = Some(pipeline);
+
+                self.streams_selected();
+
+                self.ui_event.reset_cursor();
+                self.state = ControllerState::Paused;
             }
             Err(error) => {
+                use super::media::playback_pipeline::OpenError;
+
                 self.ui_event.reset_cursor();
-                let error = gettext("Error opening file.\n\n{}").replace("{}", &error);
-                self.ui_event.show_error(error);
+
+                let error = match error {
+                    OpenError::Generic(error) => error,
+                    OpenError::MissingPlugins(plugins) => {
+                        let mut missing_nb = 0;
+                        let mut missing_list = String::new();
+
+                        plugins.iter().for_each(|plugin| {
+                            if missing_nb > 0 {
+                                missing_list += ", ";
+                            }
+
+                            missing_list += plugin;
+                            missing_nb += 1;
+                        });
+
+                        ngettext("Missing plugin: {}", "Missing plugins: {}", missing_nb).replacen(
+                            "{}",
+                            &missing_list,
+                            1,
+                        )
+                    }
+                    OpenError::StateChange => gettext("Failed to switch the pipeline to Paused"),
+                    OpenError::GLSinkError => {
+                        let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");
+                        config.media.is_gl_disabled = true;
+                        config.save();
+
+                        gettext(
+        "Video rendering hardware acceleration seems broken and has been disabled.\nPlease restart the application.",
+                        )
+                    }
+                };
+
+                self.ui_event
+                    .show_error(gettext("Error opening file.\n\n{}").replace("{}", &error));
             }
         };
     }

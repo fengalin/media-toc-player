@@ -14,14 +14,12 @@ use std::{
     rc::Rc,
 };
 
-use crate::{media::Timestamp, spawn};
+use crate::media::Timestamp;
 
 use super::{
-    InfoBarController, InfoDispatcher, MainController, PerspectiveDispatcher, StreamsDispatcher,
-    UIController, UIDispatcher, VideoDispatcher,
+    spawn, InfoBarController, InfoDispatcher, MainController, PerspectiveDispatcher,
+    StreamsDispatcher, UIController, UIDispatcher, VideoDispatcher,
 };
-
-const UI_EVENT_CHANNEL_CAPACITY: usize = 4;
 
 #[derive(Clone, Copy, Debug)]
 pub enum UIFocusContext {
@@ -33,14 +31,17 @@ pub enum UIFocusContext {
 #[derive(Debug)]
 enum UIEvent {
     CancelSelectMedia,
+    Eos,
     HideInfoBar,
     OpenMedia(PathBuf),
+    PlayPause,
     ResetCursor,
     RestoreContext,
     Seek {
         target: Timestamp,
         flags: gst::SeekFlags,
     },
+    SelectMedia,
     ShowAll,
     SetCursorWaiting,
     ShowError(Cow<'static, str>),
@@ -51,17 +52,21 @@ enum UIEvent {
 }
 
 #[derive(Clone)]
-pub struct UIEventSender(RefCell<async_mpsc::Sender<UIEvent>>);
+pub struct UIEventSender(RefCell<async_mpsc::UnboundedSender<UIEvent>>);
 
 #[allow(unused_must_use)]
 impl UIEventSender {
     fn send(&self, event: UIEvent) {
-        self.0.borrow_mut().try_send(event).unwrap();
+        self.0.borrow_mut().unbounded_send(event).unwrap();
     }
 
     pub fn cancel_select_media(&self) {
         self.send(UIEvent::CancelSelectMedia);
         self.reset_cursor();
+    }
+
+    pub fn eos(&self) {
+        self.send(UIEvent::Eos);
     }
 
     pub fn hide_info_bar(&self) {
@@ -73,6 +78,10 @@ impl UIEventSender {
         self.send(UIEvent::OpenMedia(path));
     }
 
+    pub fn play_pause(&self) {
+        self.send(UIEvent::PlayPause);
+    }
+
     pub fn reset_cursor(&self) {
         self.send(UIEvent::ResetCursor);
     }
@@ -81,8 +90,8 @@ impl UIEventSender {
         self.send(UIEvent::RestoreContext);
     }
 
-    pub fn show_all(&self) {
-        self.send(UIEvent::ShowAll);
+    pub fn select_media(&self) {
+        self.send(UIEvent::SelectMedia);
     }
 
     pub fn seek(&self, target: Timestamp, flags: gst::SeekFlags) {
@@ -91,6 +100,10 @@ impl UIEventSender {
 
     pub fn set_cursor_waiting(&self) {
         self.send(UIEvent::SetCursorWaiting);
+    }
+
+    pub fn show_all(&self) {
+        self.send(UIEvent::ShowAll);
     }
 
     pub fn show_error<Msg>(&self, msg: Msg)
@@ -122,7 +135,7 @@ impl UIEventSender {
 }
 
 pub struct UIEventHandler {
-    receiver: async_mpsc::Receiver<UIEvent>,
+    receiver: async_mpsc::UnboundedReceiver<UIEvent>,
     app: gtk::Application,
     window: gtk::ApplicationWindow,
     main_ctrl: Option<Rc<RefCell<MainController>>>,
@@ -133,7 +146,7 @@ pub struct UIEventHandler {
 
 impl UIEventHandler {
     pub fn new_pair(app: &gtk::Application, builder: &gtk::Builder) -> (Self, UIEventSender) {
-        let (sender, receiver) = async_mpsc::channel(UI_EVENT_CHANNEL_CAPACITY);
+        let (sender, receiver) = async_mpsc::unbounded();
         let ui_event_sender = UIEventSender(RefCell::new(sender));
 
         let handler = UIEventHandler {
@@ -156,10 +169,10 @@ impl UIEventHandler {
 
     pub fn spawn(mut self) {
         assert!(self.main_ctrl.is_some());
-        spawn!(async move {
+        spawn(async move {
             while let Some(event) = self.receiver.next().await {
                 debug!("handling event {:?}", event);
-                if self.handle(event).is_err() {
+                if self.handle(event).await.is_err() {
                     break;
                 }
             }
@@ -176,15 +189,18 @@ impl UIEventHandler {
         self.main_ctrl.as_ref().unwrap().borrow_mut()
     }
 
-    fn handle(&mut self, event: UIEvent) -> Result<(), ()> {
+    async fn handle(&mut self, event: UIEvent) -> Result<(), ()> {
         match event {
             UIEvent::CancelSelectMedia => self.main_ctrl_mut().cancel_select_media(),
+            UIEvent::Eos => self.main_ctrl_mut().eos(),
             UIEvent::HideInfoBar => self.info_bar_ctrl.hide(),
-            UIEvent::OpenMedia(path) => self.main_ctrl_mut().open_media(path),
+            UIEvent::OpenMedia(path) => self.main_ctrl_mut().open_media(path).await,
+            UIEvent::PlayPause => self.main_ctrl_mut().play_pause().await,
             UIEvent::ResetCursor => self.reset_cursor(),
             UIEvent::RestoreContext => self.restore_context(),
             UIEvent::ShowAll => self.show_all(),
-            UIEvent::Seek { target, flags } => self.main_ctrl_mut().seek(target, flags),
+            UIEvent::Seek { target, flags } => self.main_ctrl_mut().seek(target, flags).await,
+            UIEvent::SelectMedia => self.main_ctrl_mut().select_media().await,
             UIEvent::SetCursorWaiting => self.set_cursor_waiting(),
             UIEvent::ShowError(msg) => self.info_bar_ctrl.show_error(&msg),
             UIEvent::ShowInfo(msg) => self.info_bar_ctrl.show_info(&msg),

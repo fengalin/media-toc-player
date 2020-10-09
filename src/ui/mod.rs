@@ -35,7 +35,7 @@ use self::video_controller::VideoController;
 mod video_dispatcher;
 use self::video_dispatcher::VideoDispatcher;
 
-use futures::channel::mpsc as async_mpsc;
+use futures::prelude::*;
 use gio::prelude::*;
 use log::warn;
 
@@ -47,11 +47,8 @@ use crate::{
     metadata,
 };
 
-#[macro_export]
-macro_rules! spawn {
-    ($future:expr) => {
-        glib::MainContext::ref_thread_default().spawn_local($future);
-    };
+fn spawn<Fut: Future<Output = ()> + 'static>(future: Fut) {
+    glib::MainContext::ref_thread_default().spawn_local(future);
 }
 
 fn register_resource(resource: &[u8]) {
@@ -74,8 +71,6 @@ pub fn run(args: CommandLineArguments) {
     gtk_app.connect_activate(move |gtk_app| MainController::setup(gtk_app, &args));
     gtk_app.run(&[]);
 }
-
-type MediaEventReceiver = async_mpsc::Receiver<media::MediaEvent>;
 
 pub trait UIController {
     fn new_media(&mut self, _pipeline: &PlaybackPipeline) {}

@@ -5,9 +5,9 @@ use gtk::prelude::*;
 
 use std::sync::Arc;
 
-use crate::{media::PlaybackPipeline, metadata::Stream, spawn};
+use crate::{media::PlaybackPipeline, metadata::Stream};
 
-use super::UIController;
+use super::{spawn, UIController};
 
 const ALIGN_LEFT: f32 = 0f32;
 const ALIGN_CENTER: f32 = 0.5f32;
@@ -46,10 +46,9 @@ pub struct StreamsController {
 impl UIController for StreamsController {
     fn new_media(&mut self, pipeline: &PlaybackPipeline) {
         {
-            let mut info = pipeline.info.write().unwrap();
-
             // Video streams
-            let mut sorted_ids = info
+            let mut sorted_ids = pipeline
+                .info
                 .streams
                 .video
                 .keys()
@@ -57,7 +56,7 @@ impl UIController for StreamsController {
                 .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let stream = info.streams.get_video_mut(stream_id).unwrap();
+                let stream = pipeline.info.streams.get_video(stream_id).unwrap();
                 let iter = self.add_stream(&self.video_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Ok(Some(width)) = caps_structure.get::<i32>("width") {
@@ -74,7 +73,8 @@ impl UIController for StreamsController {
             }
 
             // Audio streams
-            let mut sorted_ids = info
+            let mut sorted_ids = pipeline
+                .info
                 .streams
                 .audio
                 .keys()
@@ -82,7 +82,7 @@ impl UIController for StreamsController {
                 .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let stream = info.streams.get_audio_mut(stream_id).unwrap();
+                let stream = pipeline.info.streams.get_audio(stream_id).unwrap();
                 let iter = self.add_stream(&self.audio_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Ok(Some(rate)) = caps_structure.get::<i32>("rate") {
@@ -99,7 +99,8 @@ impl UIController for StreamsController {
             }
 
             // Text streams
-            let mut sorted_ids = info
+            let mut sorted_ids = pipeline
+                .info
                 .streams
                 .text
                 .keys()
@@ -107,7 +108,7 @@ impl UIController for StreamsController {
                 .collect::<Vec<Arc<str>>>();
             sorted_ids.sort();
             for stream_id in sorted_ids {
-                let stream = info.streams.get_text_mut(stream_id).unwrap();
+                let stream = pipeline.info.streams.get_text(stream_id).unwrap();
                 let iter = self.add_stream(&self.text_store, stream);
                 let caps_structure = stream.caps.get_structure(0).unwrap();
                 if let Ok(Some(format)) = caps_structure.get::<&str>("format") {
@@ -152,7 +153,7 @@ impl UIController for StreamsController {
         // grab focus asynchronoulsy because it triggers the `cursor_changed` signal
         // which needs to check if the stream has changed
         let audio_treeview = self.audio_treeview.clone();
-        spawn!(async move {
+        spawn(async move {
             audio_treeview.grab_focus();
         });
     }
@@ -215,14 +216,14 @@ impl StreamsController {
             .tags
             .get_index::<gst::tags::LanguageName>(0)
             .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
-            .and_then(glib::TypedValue::get)
+            .and_then(|value| value.get())
             .unwrap_or("-");
         store.set_value(&iter, LANGUAGE_COL, &glib::Value::from(lang));
 
         if let Some(comment) = stream
             .tags
             .get_index::<gst::tags::Comment>(0)
-            .and_then(glib::TypedValue::get)
+            .and_then(|value| value.get())
         {
             store.set_value(&iter, COMMENT_COL, &glib::Value::from(comment));
         }

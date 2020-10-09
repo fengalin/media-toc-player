@@ -3,27 +3,33 @@ authors = ["François Laignel <fengalin@free.fr>"]
 build = "build.rs"
 description = "A media player with a table of contents"
 edition = '2018'
-homepage = "https://github.com/fengalin/media-toc"
+homepage = "https://https://github.com/fengalin/media-toc"
 keywords = ["multimedia", "chapter", "table-of-contents", "gtk3", "gstreamer"]
 license = "MIT"
 name = "media-toc-player"
 readme = "README.md"
-repository = "https://github.com/fengalin/media-toc-player"
+repository = "https://https://github.com/fengalin/media-toc-player"
 version = "0.1.99"
 
 [dependencies]
 bitflags = "1"
-cairo-rs = "0.9"
+#cairo-rs = "0.9"
+cairo-rs = { git = "https://github.com/gtk-rs/cairo" }
 clap = "2"
 directories = "3"
 env_logger = "0.7"
 futures = "0.3"
-gdk = "0.13"
+#gdk = "0.13"
+gdk = { git = "https://github.com/gtk-rs/gdk" }
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
-gio = "0.9"
-glib = "0.10"
-gstreamer = { version = "0.16", features = ["v1_10"] }
-gtk = { version = "0.9", features = ["v3_20"] }
+#gio = "0.9"
+gio = { git = "https://github.com/gtk-rs/gio" }
+#glib = "0.10"
+glib = { git = "https://github.com/gtk-rs/glib" }
+#gstreamer = { version = "0.16", features = ["v1_10"] }
+gstreamer = { features = ["v1_10"], path = "../gstreamer-rs/gstreamer" }
+#gtk = { version = "0.9", features = ["v3_20"] }
+gtk = { git = "https://github.com/gtk-rs/gtk", features = ["v3_20"] }
 image = "0.23"
 lazy_static = "1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }

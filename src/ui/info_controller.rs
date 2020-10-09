@@ -54,16 +54,15 @@ impl UIController for InfoController {
         let toc_extensions = metadata::Factory::get_extensions();
 
         {
-            let info = pipeline.info.read().unwrap();
-
             // check the presence of a toc file
             let mut toc_candidates =
                 toc_extensions
                     .into_iter()
                     .filter_map(|(extension, format)| {
-                        let path = info
+                        let path = pipeline
+                            .info
                             .path
-                            .with_file_name(&format!("{}.{}", info.name, extension));
+                            .with_file_name(&format!("{}.{}", pipeline.info.name, extension));
                         if path.is_file() {
                             Some((path, format))
                         } else {
@@ -71,12 +70,14 @@ impl UIController for InfoController {
                         }
                     });
 
-            self.duration = info.duration;
-            self.timeline_scale.set_range(0f64, info.duration.as_f64());
+            self.duration = pipeline.info.duration;
+            self.timeline_scale
+                .set_range(0f64, pipeline.info.duration.as_f64());
             self.duration_lbl
-                .set_label(&Timestamp4Humans::from_duration(info.duration).to_string());
+                .set_label(&Timestamp4Humans::from_duration(pipeline.info.duration).to_string());
 
-            self.thumbnail = info.get_media_image().and_then(|image| {
+            // FIXME no longer displayed
+            self.thumbnail = pipeline.info.get_media_image().and_then(|image| {
                 image.get_buffer().and_then(|image_buffer| {
                     image_buffer.map_readable().ok().and_then(|image_map| {
                         Image::from_unknown(image_map.as_slice())
@@ -87,13 +88,15 @@ impl UIController for InfoController {
             });
 
             self.container_lbl
-                .set_label(info.get_container().unwrap_or(EMPTY_REPLACEMENT));
+                .set_label(pipeline.info.get_container().unwrap_or(EMPTY_REPLACEMENT));
 
             let extern_toc = toc_candidates
                 .next()
                 .and_then(|(toc_path, format)| match File::open(toc_path.clone()) {
                     Ok(mut toc_file) => {
-                        match metadata::Factory::get_reader(format).read(&info, &mut toc_file) {
+                        match metadata::Factory::get_reader(format)
+                            .read(&pipeline.info, &mut toc_file)
+                        {
                             Ok(Some(toc)) => Some(toc),
                             Ok(None) => {
                                 let msg = gettext("No toc in file \"{}\"").replacen(
@@ -129,7 +132,7 @@ impl UIController for InfoController {
             if extern_toc.is_some() {
                 self.chapter_manager.replace_with(&extern_toc);
             } else {
-                self.chapter_manager.replace_with(&info.toc);
+                self.chapter_manager.replace_with(&pipeline.info.toc);
             }
         }
 
@@ -311,7 +314,7 @@ impl InfoController {
 
         if self.repeat_chapter {
             // repeat is activated
-            if state == ControllerState::EOS {
+            if state == ControllerState::Eos {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
                 self.repeat_at(Timestamp::default());
@@ -353,7 +356,7 @@ impl InfoController {
         }
     }
 
-    pub fn seek(&mut self, target: Timestamp) {
-        self.tick(target, ControllerState::Seeking);
+    pub fn seek(&mut self, target: Timestamp, state: ControllerState) {
+        self.tick(target, state);
     }
 }

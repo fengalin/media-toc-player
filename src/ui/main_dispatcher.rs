@@ -1,4 +1,3 @@
-use futures::channel::mpsc as async_mpsc;
 use futures::prelude::*;
 
 use gettextrs::gettext;
@@ -7,18 +6,14 @@ use gio::prelude::*;
 use glib::clone;
 use gtk::prelude::*;
 
-use log::debug;
-
-use std::{cell::RefCell, rc::Rc};
-
-use crate::media::{MediaEvent, PlaybackPipeline};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use super::{
-    main_controller::ControllerState, InfoDispatcher, MainController, PerspectiveDispatcher,
-    StreamsDispatcher, UIDispatcher, UIFocusContext, VideoDispatcher,
+    InfoDispatcher, MainController, PerspectiveDispatcher, PlaybackPipeline, StreamsDispatcher,
+    UIDispatcher, UIFocusContext, VideoDispatcher,
 };
 
-const TRACKER_PERIOD: u32 = 40; //  40 ms (25 Hz)
+const TRACKER_PERIOD: u64 = 40; //  40 ms (25 Hz)
 
 pub struct MainDispatcher;
 impl MainDispatcher {
@@ -52,7 +47,7 @@ impl MainDispatcher {
         app_section.append(Some(&gettext("Quit")), Some("app.quit"));
 
         main_ctrl.window.connect_delete_event(
-            clone!(@weak main_ctrl_rc => @default-return Inhibit(false), move |_, _| {
+            clone!(@weak main_ctrl_rc => @default-panic, move |_, _| {
                 main_ctrl_rc.borrow_mut().quit();
                 Inhibit(false)
             }),
@@ -70,36 +65,21 @@ impl MainDispatcher {
             InfoDispatcher::setup(&mut main_ctrl.info_ctrl, main_ctrl_rc, &app, &ui_event);
             StreamsDispatcher::setup(&mut main_ctrl.streams_ctrl, main_ctrl_rc, &app, &ui_event);
 
-            main_ctrl.new_media_event_handler = Some(Box::new(clone!(@weak main_ctrl_rc =>
-            @default-panic, move |receiver| {
-                let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
-                async move {
-                    let mut receiver = receiver;
-                    while let Some(event) =
-                        async_mpsc::Receiver::<MediaEvent>::next(&mut receiver).await
-                    {
-                        if main_ctrl_rc.borrow_mut().handle_media_event(event).is_err() {
-                            break;
-                        }
-                    }
-                    debug!("Media event handler terminated");
-                }.boxed_local()
-            })));
-
             main_ctrl.new_tracker = Some(Box::new(clone!(@weak main_ctrl_rc =>
             @default-panic, move || {
                 let main_ctrl_rc = Rc::clone(&main_ctrl_rc);
                 async move {
                     loop {
-                        glib::timeout_future(TRACKER_PERIOD).await;
-                        main_ctrl_rc.borrow_mut().tick();
+                        glib::timeout_future(Duration::from_millis(TRACKER_PERIOD)).await;
+                        if let Ok(mut main_ctrl) = main_ctrl_rc.try_borrow_mut() {
+                            main_ctrl.tick();
+                        }
                     }
                 }.boxed_local()
             })));
 
-            let ui_event_clone = ui_event.clone();
             let _ = PlaybackPipeline::check_requirements()
-                .map_err(move |err| ui_event_clone.show_error(err));
+                .map_err(clone!(@strong ui_event => move |err| ui_event.show_error(err)));
 
             let main_section = gio::Menu::new();
             app_menu.insert_section(0, None, &main_section);
@@ -107,16 +87,7 @@ impl MainDispatcher {
             // Register Open action
             let open = gio::SimpleAction::new("open", None);
             app.add_action(&open);
-            open.connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
-                let mut main_ctrl = main_ctrl_rc.borrow_mut();
-                match main_ctrl.state {
-                    ControllerState::Playing | ControllerState::EOS => {
-                        main_ctrl.hold();
-                        main_ctrl.state = ControllerState::PendingSelectMedia;
-                    }
-                    _ => main_ctrl.select_media(),
-                }
-            }));
+            open.connect_activate(clone!(@strong ui_event => move |_, _| ui_event.select_media()));
             main_section.append(Some(&gettext("Open media file")), Some("app.open"));
             app.set_accels_for_action("app.open", &["<Ctrl>O"]);
 
@@ -125,15 +96,16 @@ impl MainDispatcher {
             // Register Play/Pause action
             let play_pause = gio::SimpleAction::new("play_pause", None);
             app.add_action(&play_pause);
-            play_pause.connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
-                main_ctrl_rc.borrow_mut().play_pause();
+            play_pause.connect_activate(clone!(@strong ui_event => move |_, _| {
+                ui_event.play_pause();
             }));
             main_ctrl.play_pause_btn.set_sensitive(true);
 
-            let ui_event_clone = ui_event.clone();
-            main_ctrl.display_page.connect_map(move |_| {
-                ui_event_clone.switch_to(UIFocusContext::PlaybackPage);
-            });
+            main_ctrl
+                .display_page
+                .connect_map(clone!(@strong ui_event => move |_| {
+                    ui_event.switch_to(UIFocusContext::PlaybackPage);
+                }));
 
             ui_event.switch_to(UIFocusContext::PlaybackPage);
         } else {

@@ -98,7 +98,7 @@ impl Stream {
             _ => panic!("Stream::new can't handle {:?}", type_),
         }
         .or_else(|| tags.get_index::<gst::tags::Codec>(0))
-        .and_then(glib::value::TypedValue::get)
+        .and_then(|value| value.get())
         .map_or_else(
             || {
                 // codec in caps in the form "streamtype/x-codec"
@@ -187,16 +187,16 @@ impl Streams {
             .map(|stream_id| &self.text[stream_id])
     }
 
-    pub fn get_audio_mut<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
-        self.audio.get_mut(id.as_ref())
+    pub fn get_audio<S: AsRef<str>>(&self, id: S) -> Option<&Stream> {
+        self.audio.get(id.as_ref())
     }
 
-    pub fn get_video_mut<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
-        self.video.get_mut(id.as_ref())
+    pub fn get_video<S: AsRef<str>>(&self, id: S) -> Option<&Stream> {
+        self.video.get(id.as_ref())
     }
 
-    pub fn get_text_mut<S: AsRef<str>>(&mut self, id: S) -> Option<&mut Stream> {
-        self.text.get_mut(id.as_ref())
+    pub fn get_text<S: AsRef<str>>(&self, id: S) -> Option<&Stream> {
+        self.text.get(id.as_ref())
     }
 
     pub fn select_streams(&mut self, ids: &[Arc<str>]) {
@@ -341,6 +341,6 @@ impl MediaInfo {
 
         self.tags
             .get_index::<gst::tags::ContainerFormat>(0)
-            .and_then(glib::value::TypedValue::get)
+            .and_then(|value| value.get())
     }
 }

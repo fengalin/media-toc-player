@@ -1,4 +1,4 @@
-use glib::{signal::SignalHandlerId, ObjectExt, ToValue};
+use glib::{prelude::*, signal::SignalHandlerId};
 use gstreamer as gst;
 use gtk::prelude::*;
 use log::debug;
