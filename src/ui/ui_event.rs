@@ -35,6 +35,7 @@ enum UIEvent {
     HideInfoBar,
     OpenMedia(PathBuf),
     PlayPause,
+    Quit,
     ResetCursor,
     RestoreContext,
     Seek {
@@ -57,7 +58,7 @@ pub struct UIEventSender(RefCell<async_mpsc::UnboundedSender<UIEvent>>);
 #[allow(unused_must_use)]
 impl UIEventSender {
     fn send(&self, event: UIEvent) {
-        self.0.borrow_mut().unbounded_send(event).unwrap();
+        let _ = self.0.borrow_mut().unbounded_send(event);
     }
 
     pub fn cancel_select_media(&self) {
@@ -80,6 +81,10 @@ impl UIEventSender {
 
     pub fn play_pause(&self) {
         self.send(UIEvent::PlayPause);
+    }
+
+    pub fn quit(&self) {
+        self.send(UIEvent::Quit);
     }
 
     pub fn reset_cursor(&self) {
@@ -164,7 +169,6 @@ impl UIEventHandler {
 
     pub fn have_main_ctrl(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
         self.main_ctrl = Some(Rc::clone(&main_ctrl));
-        self.info_bar_ctrl.have_main_ctrl(main_ctrl);
     }
 
     pub fn spawn(mut self) {
@@ -196,6 +200,10 @@ impl UIEventHandler {
             UIEvent::HideInfoBar => self.info_bar_ctrl.hide(),
             UIEvent::OpenMedia(path) => self.main_ctrl_mut().open_media(path).await,
             UIEvent::PlayPause => self.main_ctrl_mut().play_pause().await,
+            UIEvent::Quit => {
+                self.main_ctrl_mut().quit();
+                return Err(());
+            }
             UIEvent::ResetCursor => self.reset_cursor(),
             UIEvent::RestoreContext => self.restore_context(),
             UIEvent::ShowAll => self.show_all(),

@@ -35,6 +35,7 @@ pub enum ControllerState {
 
 pub struct MainController {
     pub(super) window: gtk::ApplicationWindow,
+    pub(super) window_delete_id: Option<glib::signal::SignalHandlerId>,
 
     header_bar: gtk::HeaderBar,
     pub(super) open_btn: gtk::Button,
@@ -42,7 +43,7 @@ pub struct MainController {
     pub(super) play_pause_btn: gtk::ToolButton,
     file_dlg: gtk::FileChooserNative,
 
-    ui_event: UIEventSender,
+    pub(super) ui_event: UIEventSender,
 
     pub(super) perspective_ctrl: PerspectiveController,
     pub(super) video_ctrl: VideoController,
@@ -89,6 +90,8 @@ impl MainController {
 
         let main_ctrl_rc = Rc::new(RefCell::new(MainController {
             window,
+            window_delete_id: None,
+
             header_bar: builder.get_object("header-bar").unwrap(),
             open_btn: builder.get_object("open-btn").unwrap(),
             display_page: builder.get_object("video-container").unwrap(),
@@ -149,7 +152,7 @@ impl MainController {
         dialog.set_program_name(env!("CARGO_PKG_NAME"));
         dialog.set_logo_icon_name(Some(&APP_ID));
         dialog.set_comments(Some(&gettext("A media player with a table of contents")));
-        dialog.set_copyright(Some(&gettext("© 2017–2019 François Laignel")));
+        dialog.set_copyright(Some(&"© 2017–2020 François Laignel"));
         dialog.set_translator_credits(Some(&gettext("translator-credits")));
         dialog.set_license_type(gtk::License::MitX11);
         dialog.set_version(Some(env!("CARGO_PKG_VERSION")));
@@ -167,12 +170,15 @@ impl MainController {
             let _ = pipeline.stop();
         }
 
-        {
+        if let Some(window_delete_id) = self.window_delete_id.take() {
             let size = self.window.get_size();
             let mut config = CONFIG.write().unwrap();
             config.ui.width = size.0;
             config.ui.height = size.1;
             config.save();
+
+            // Restore default delete handler
+            glib::signal::signal_handler_disconnect(&self.window, window_delete_id);
         }
 
         self.window.close();

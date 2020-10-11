@@ -239,10 +239,6 @@ msgstr "Ouvrir"
 msgid "Cancel"
 msgstr "Annuler"
 
-#: src/ui/main_controller.rs:162
-msgid "© 2017–2019 François Laignel"
-msgstr "© 2017–2019 François Laignel"
-
 #: src/ui/main_controller.rs:163
 msgid "translator-credits"
 msgstr "François Laignel"
