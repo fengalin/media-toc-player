@@ -150,7 +150,11 @@ impl UIDispatcher for InfoDispatcher {
         app.add_action(&step_forward);
         step_forward.connect_activate(clone!(
             @weak main_ctrl_rc, @strong ui_event => move |_, _| {
-                let current_ts = main_ctrl_rc.borrow_mut().current_ts();
+                let current_ts = main_ctrl_rc
+                    .try_borrow_mut()
+                    .ok()
+                    .as_mut()
+                    .and_then(|main_ctrl| main_ctrl.current_ts());
                 if let Some(current_ts) = current_ts {
                     let seek_target = current_ts + SEEK_STEP;
                     ui_event.seek(seek_target, gst::SeekFlags::ACCURATE);

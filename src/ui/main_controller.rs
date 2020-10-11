@@ -6,11 +6,13 @@ use gettextrs::{gettext, ngettext};
 use gstreamer as gst;
 use gtk::prelude::*;
 
+use log::error;
+
 use std::{borrow::ToOwned, cell::RefCell, path::PathBuf, rc::Rc, sync::Arc};
 
 use crate::{
     application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG},
-    media::{MediaMessage, PlaybackPipeline, SeekError, Timestamp},
+    media::{MediaMessage, PlaybackPipeline, SeekError, SelectStreamsError, Timestamp},
 };
 
 use super::{
@@ -210,15 +212,14 @@ impl MainController {
     pub async fn seek(&mut self, position: Timestamp, flags: gst::SeekFlags) {
         match self.state {
             ControllerState::Playing | ControllerState::Paused | ControllerState::Eos => {
-                let ret = self.pipeline.as_mut().unwrap().seek(position, flags).await;
-                self.info_ctrl.seek(position, self.state);
-
-                if let Err(SeekError::Eos) = ret {
-                    self.ui_event.eos();
+                match self.pipeline.as_mut().unwrap().seek(position, flags).await {
+                    Ok(()) => self.info_ctrl.seek(position, self.state),
+                    Err(SeekError::Eos) => {
+                        self.info_ctrl.seek(position, self.state);
+                        self.ui_event.eos();
+                    }
+                    Err(SeekError::Unrecoverable) => self.stop(),
                 }
-            }
-            ControllerState::Stopped => {
-                self.select_media().await;
             }
             _ => (),
         }
@@ -235,12 +236,18 @@ impl MainController {
     }
 
     pub async fn select_streams(&mut self, stream_ids: &[Arc<str>]) {
-        self.pipeline
+        let res = self
+            .pipeline
             .as_mut()
             .unwrap()
             .select_streams(stream_ids)
             .await;
-        self.streams_selected();
+
+        match res {
+            Ok(()) => self.streams_selected(),
+            Err(SelectStreamsError::Unrecoverable) => self.stop(),
+            Err(err) => panic!("{}", err),
+        }
     }
 
     pub fn streams_selected(&mut self) {
@@ -298,22 +305,28 @@ impl MainController {
         self.file_dlg.show();
     }
 
-    pub async fn open_media(&mut self, path: PathBuf) {
+    pub fn stop(&mut self) {
+        self.abort_tracker();
+
         if let Some(mut pipeline) = self.pipeline.take() {
-            pipeline.stop().unwrap();
+            let _ = pipeline.stop();
         }
 
+        self.state = ControllerState::Stopped;
+    }
+
+    pub async fn open_media(&mut self, path: PathBuf) {
         if let Some(abort_handle) = self.media_msg_abort_handle.take() {
             abort_handle.abort();
         }
+
+        self.stop();
 
         self.info_ctrl.cleanup();
         self.video_ctrl.cleanup();
         self.streams_ctrl.cleanup();
         self.perspective_ctrl.cleanup();
         self.header_bar.set_subtitle(Some(""));
-
-        self.state = ControllerState::Stopped;
 
         match PlaybackPipeline::try_new(path.as_ref(), &self.video_ctrl.get_video_sink()).await {
             Ok(mut pipeline) => {
@@ -344,7 +357,13 @@ impl MainController {
                     while let Some(msg) = media_msg_rx.next().await {
                         match msg {
                             MediaMessage::Eos => ui_event.eos(),
-                            MediaMessage::Error(err) => ui_event.show_error(err),
+                            MediaMessage::Error(err) => {
+                                let err = gettext("An unrecoverable error occured {}")
+                                    .replace("{}", &err);
+                                error!("{}", err);
+                                ui_event.show_error(err);
+                                break;
+                            }
                         }
                     }
                 });

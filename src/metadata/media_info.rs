@@ -5,11 +5,32 @@ use lazy_static::lazy_static;
 
 use std::{
     collections::HashMap,
+    fmt,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use super::{Duration, MediaContent};
+
+#[derive(Debug)]
+pub struct SelectStreamError(Arc<str>);
+
+impl SelectStreamError {
+    fn new(id: &Arc<str>) -> Self {
+        SelectStreamError(Arc::clone(&id))
+    }
+
+    pub fn id(&self) -> &Arc<str> {
+        &self.0
+    }
+}
+
+impl fmt::Display for SelectStreamError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "MediaInfo: unknown stream id {}", self.0)
+    }
+}
+impl std::error::Error for SelectStreamError {}
 
 pub fn get_default_chapter_title() -> String {
     gettext("untitled")
@@ -199,7 +220,7 @@ impl Streams {
         self.text.get(id.as_ref())
     }
 
-    pub fn select_streams(&mut self, ids: &[Arc<str>]) {
+    pub fn select_streams(&mut self, ids: &[Arc<str>]) -> Result<(), SelectStreamError> {
         let mut is_audio_selected = false;
         let mut is_text_selected = false;
         let mut is_video_selected = false;
@@ -224,10 +245,7 @@ impl Streams {
                     .map_or(true, |prev_stream| *id != prev_stream.id);
                 self.cur_video_id = Some(Arc::clone(id));
             } else {
-                panic!(
-                    "MediaInfo::select_streams unknown stream id {}",
-                    id.as_ref()
-                );
+                return Err(SelectStreamError::new(id));
             }
         }
 
@@ -240,6 +258,8 @@ impl Streams {
         if !is_video_selected {
             self.video_changed = self.cur_video_id.take().map_or(false, |_| true);
         }
+
+        Ok(())
     }
 
     pub fn get_audio_codec(&self) -> Option<&str> {

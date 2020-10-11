@@ -9,16 +9,16 @@ use gstreamer as gst;
 
 use log::{error, info, warn};
 
-use std::{collections::HashSet, convert::AsRef, path::Path, sync::Arc};
+use std::{collections::HashSet, convert::AsRef, fmt, path::Path, sync::Arc};
 
-use crate::metadata::{Duration, MediaInfo};
+use crate::metadata::{media_info, Duration, MediaInfo};
 
 use super::Timestamp;
 
 #[derive(Debug)]
 pub enum MediaMessage {
-    Error(String),
     Eos,
+    Error(String),
 }
 
 #[derive(Debug)]
@@ -32,22 +32,84 @@ pub enum OpenError {
 // TODO impl Error for OpenError
 
 #[derive(Debug)]
-pub enum StateChangeError {
-    Error(String),
+struct PurgeError;
+
+#[derive(Debug)]
+pub struct StateChangeError;
+
+impl From<gst::StateChangeError> for StateChangeError {
+    fn from(_: gst::StateChangeError) -> Self {
+        StateChangeError
+    }
 }
 
-// TODO impl Error for StateChangeError
+impl From<PurgeError> for StateChangeError {
+    fn from(_: PurgeError) -> Self {
+        StateChangeError
+    }
+}
+
+impl fmt::Display for StateChangeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Media: couldn't change state")
+    }
+}
+impl std::error::Error for StateChangeError {}
 
 #[derive(Debug)]
 pub enum SeekError {
     Eos,
+    Unrecoverable,
 }
 
-// TODO impl Error for SeekError
+impl From<PurgeError> for SeekError {
+    fn from(_: PurgeError) -> Self {
+        SeekError::Unrecoverable
+    }
+}
+
+impl fmt::Display for SeekError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SeekError::Eos => write!(f, "Media: seeking past the end"),
+            SeekError::Unrecoverable => write!(f, "Media: couldn't seek"),
+        }
+    }
+}
+impl std::error::Error for SeekError {}
+
+#[derive(Debug)]
+pub enum SelectStreamsError {
+    UnknownId(Arc<str>),
+    Unrecoverable,
+}
+
+impl From<media_info::SelectStreamError> for SelectStreamsError {
+    fn from(err: media_info::SelectStreamError) -> Self {
+        SelectStreamsError::UnknownId(Arc::clone(err.id()))
+    }
+}
+
+impl From<PurgeError> for SelectStreamsError {
+    fn from(_: PurgeError) -> Self {
+        SelectStreamsError::Unrecoverable
+    }
+}
+
+impl fmt::Display for SelectStreamsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SelectStreamsError::UnknownId(id) => {
+                write!(f, "Media: select stream: unknown id {}", id.as_ref())
+            }
+            SelectStreamsError::Unrecoverable => write!(f, "Media: couldn't select stream"),
+        }
+    }
+}
+impl std::error::Error for SelectStreamsError {}
 
 pub struct PlaybackPipeline {
     pipeline: gst::Pipeline,
-    decodebin: gst::Element,
     pub info: MediaInfo,
     pub media_msg_rx: Option<async_chan::UnboundedReceiver<MediaMessage>>,
     int_msg_rx: async_chan::UnboundedReceiver<gst::Message>,
@@ -65,6 +127,7 @@ impl Drop for PlaybackPipeline {
 
 /// Initialization
 impl PlaybackPipeline {
+    #[must_use]
     pub async fn try_new(
         path: &Path,
         video_sink: &Option<gst::Element>,
@@ -74,21 +137,17 @@ impl PlaybackPipeline {
             gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1)
         );
 
-        let pipeline = gst::Pipeline::new(Some("playback_pipeline"));
-
         let (ext_msg_tx, ext_msg_rx) = async_chan::unbounded();
         let (int_msg_tx, int_msg_rx) = async_chan::unbounded();
 
         let mut this = PlaybackPipeline {
-            pipeline,
-            decodebin: gst::ElementFactory::make("decodebin3", Some("decodebin")).unwrap(),
+            pipeline: gst::Pipeline::new(Some("playback_pipeline")),
             info: MediaInfo::new(path),
             media_msg_rx: Some(ext_msg_rx),
             int_msg_rx,
             bus_watch_src_id: None,
         };
 
-        this.pipeline.add(&this.decodebin).unwrap();
         this.build_pipeline(path, video_sink);
 
         this.open().await?;
@@ -97,6 +156,7 @@ impl PlaybackPipeline {
         Ok(this)
     }
 
+    #[must_use]
     pub fn check_requirements() -> Result<(), String> {
         gst::ElementFactory::make("decodebin3", None)
             .map(drop)
@@ -130,8 +190,12 @@ impl PlaybackPipeline {
             .set_property("location", &path.to_str().unwrap())
             .unwrap();
 
-        self.pipeline.add(&file_src).unwrap();
-        file_src.link(&self.decodebin).unwrap();
+        let decodebin = gst::ElementFactory::make("decodebin3", Some("decodebin")).unwrap();
+
+        let elements = &[&file_src, &decodebin];
+        self.pipeline.add_many(elements).unwrap();
+
+        file_src.link(&decodebin).unwrap();
 
         let audio_sink =
             gst::ElementFactory::make("autoaudiosink", Some("audio_playback_sink")).unwrap();
@@ -139,17 +203,31 @@ impl PlaybackPipeline {
         // Prepare pad configuration callback
         let pipeline_clone = self.pipeline.clone();
         let video_sink = video_sink.clone();
-        self.decodebin
-            .connect_pad_added(move |_decodebin, src_pad| {
-                let pipeline = &pipeline_clone;
-                let name = src_pad.get_name();
+        decodebin.connect_pad_added(move |_decodebin, src_pad| {
+            let pipeline = &pipeline_clone;
+            let name = src_pad.get_name();
 
-                if name.starts_with("audio_") {
-                    let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
-                    let resample = gst::ElementFactory::make("audioresample", None).unwrap();
+            if name.starts_with("audio_") {
+                let convert = gst::ElementFactory::make("audioconvert", None).unwrap();
+                let resample = gst::ElementFactory::make("audioresample", None).unwrap();
 
-                    let elements = &[&convert, &resample, &audio_sink];
+                let elements = &[&convert, &resample, &audio_sink];
 
+                pipeline.add_many(elements).unwrap();
+                gst::Element::link_many(elements).unwrap();
+
+                for e in elements {
+                    e.sync_state_with_parent().unwrap();
+                }
+
+                let sink_pad = convert.get_static_pad("sink").unwrap();
+                src_pad.link(&sink_pad).unwrap();
+            } else if name.starts_with("video_") {
+                if let Some(video_sink) = &video_sink {
+                    let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
+                    let scale = gst::ElementFactory::make("videoscale", None).unwrap();
+
+                    let elements = &[&convert, &scale, video_sink];
                     pipeline.add_many(elements).unwrap();
                     gst::Element::link_many(elements).unwrap();
 
@@ -159,26 +237,12 @@ impl PlaybackPipeline {
 
                     let sink_pad = convert.get_static_pad("sink").unwrap();
                     src_pad.link(&sink_pad).unwrap();
-                } else if name.starts_with("video_") {
-                    if let Some(video_sink) = &video_sink {
-                        let convert = gst::ElementFactory::make("videoconvert", None).unwrap();
-                        let scale = gst::ElementFactory::make("videoscale", None).unwrap();
-
-                        let elements = &[&convert, &scale, video_sink];
-                        pipeline.add_many(elements).unwrap();
-                        gst::Element::link_many(elements).unwrap();
-
-                        for e in elements {
-                            e.sync_state_with_parent().unwrap();
-                        }
-
-                        let sink_pad = convert.get_static_pad("sink").unwrap();
-                        src_pad.link(&sink_pad).unwrap();
-                    }
                 }
-            });
+            }
+        });
     }
 
+    #[must_use]
     async fn open(&mut self) -> Result<(), OpenError> {
         let mut bus_stream = self.pipeline.get_bus().unwrap().stream();
 
@@ -280,21 +344,24 @@ impl PlaybackPipeline {
             .add_watch(move |_, msg| {
                 use gst::MessageView::*;
 
+                let mut must_forward = false;
                 match msg.view() {
-                    AsyncDone(_) | StreamsSelected(_) => {
-                        int_msg_tx.unbounded_send(msg.clone()).unwrap();
-                    }
+                    AsyncDone(_) => must_forward = true,
                     Eos(_) => {
                         ext_msg_tx.unbounded_send(MediaMessage::Eos).unwrap();
                     }
                     Error(err) => {
-                        int_msg_tx.unbounded_send(msg.clone()).unwrap();
                         ext_msg_tx
                             .unbounded_send(MediaMessage::Error(err.get_error().to_string()))
                             .unwrap();
+
+                        must_forward = true;
                     }
-                    //other => println!("Bus watch {:?}", other),
                     _ => (),
+                }
+
+                if must_forward {
+                    int_msg_tx.unbounded_send(msg.clone()).unwrap();
                 }
 
                 glib::Continue(true)
@@ -318,18 +385,34 @@ impl PlaybackPipeline {
         }
     }
 
+    /// Purges previous internal messages if any.
+    #[must_use]
+    fn purge_int_msg(&mut self) -> Result<(), PurgeError> {
+        while let Ok(msg) = self.int_msg_rx.try_next() {
+            match msg {
+                Some(msg) => {
+                    if let gst::MessageView::Error(_) = msg.view() {
+                        return Err(PurgeError);
+                    }
+                }
+                None => panic!("internal channel terminated"),
+            }
+        }
+
+        Ok(())
+    }
+
+    #[must_use]
     pub async fn pause(&mut self) -> Result<(), StateChangeError> {
-        self.pipeline
-            .set_state(gst::State::Paused)
-            .map_err(|err| StateChangeError::Error(err.to_string()))?;
+        self.purge_int_msg()?;
+
+        self.pipeline.set_state(gst::State::Paused)?;
 
         while let Some(msg) = self.int_msg_rx.next().await {
             use gst::MessageView::*;
             match msg.view() {
                 AsyncDone(_) => break,
-                Error(err) => {
-                    return Err(StateChangeError::Error(err.get_error().to_string()));
-                }
+                Error(_) => return Err(StateChangeError),
                 _ => (),
             }
         }
@@ -337,34 +420,31 @@ impl PlaybackPipeline {
         Ok(())
     }
 
+    #[must_use]
     pub fn play(&mut self) -> Result<(), StateChangeError> {
-        self.pipeline
-            .set_state(gst::State::Playing)
-            .map_err(|err| StateChangeError::Error(err.to_string()))?;
+        self.purge_int_msg()?;
 
+        self.pipeline.set_state(gst::State::Playing)?;
         Ok(())
     }
 
+    #[must_use]
     pub fn stop(&mut self) -> Result<(), StateChangeError> {
         if let Some(bus_watch_src_id) = self.bus_watch_src_id.take() {
             glib::source_remove(bus_watch_src_id);
         }
 
-        self.pipeline
-            .set_state(gst::State::Null)
-            .map(|_| ())
-            .map_err(|err| StateChangeError::Error(err.to_string()))
+        self.pipeline.set_state(gst::State::Null)?;
+        Ok(())
     }
 
+    #[must_use]
     pub async fn seek(
         &mut self,
         target: Timestamp,
         flags: gst::SeekFlags,
     ) -> Result<(), SeekError> {
-        assert!(self.bus_watch_src_id.is_some());
-
-        // Purge previous internal messages if any
-        while let Ok(Some(_)) = self.int_msg_rx.try_next() {}
+        self.purge_int_msg()?;
 
         self.pipeline
             .seek_simple(
@@ -380,7 +460,8 @@ impl PlaybackPipeline {
         use gst::MessageView::*;
         while let Some(msg) = self.int_msg_rx.next().await {
             match msg.view() {
-                AsyncDone(_) | Error(_) => break,
+                AsyncDone(_) => break,
+                Error(_) => return Err(SeekError::Unrecoverable),
                 _ => (),
             }
         }
@@ -388,24 +469,19 @@ impl PlaybackPipeline {
         Ok(())
     }
 
-    pub async fn select_streams(&mut self, stream_ids: &[Arc<str>]) {
-        assert!(self.bus_watch_src_id.is_some());
-
-        // Purge previous internal messages if any
-        while let Ok(Some(_)) = self.int_msg_rx.try_next() {}
+    #[must_use]
+    pub async fn select_streams(
+        &mut self,
+        stream_ids: &[Arc<str>],
+    ) -> Result<(), SelectStreamsError> {
+        self.purge_int_msg()?;
 
         let stream_id_vec: Vec<&str> = stream_ids.iter().map(AsRef::as_ref).collect();
         let select_streams_evt = gst::event::SelectStreams::new(&stream_id_vec);
-        self.decodebin.send_event(select_streams_evt);
+        self.pipeline.send_event(select_streams_evt);
 
-        use gst::MessageView::*;
-        while let Some(msg) = self.int_msg_rx.next().await {
-            match msg.view() {
-                StreamsSelected(_) | Error(_) => break,
-                _ => (),
-            }
-        }
+        self.info.streams.select_streams(stream_ids)?;
 
-        self.info.streams.select_streams(stream_ids);
+        Ok(())
     }
 }
