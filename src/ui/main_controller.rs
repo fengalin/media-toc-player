@@ -25,7 +25,8 @@ const PLAYBACK_ICON: &str = "media-playback-start-symbolic";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ControllerState {
-    Eos,
+    EosPaused,
+    EosPlaying,
     Paused,
     PendingSelectMediaDecision,
     Playing,
@@ -178,51 +179,83 @@ impl MainController {
     }
 
     pub async fn play_pause(&mut self) {
+        use ControllerState::*;
+
         match self.state {
-            ControllerState::Paused => {
+            Paused => {
                 self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.state = ControllerState::Playing;
+                self.state = Playing;
                 self.pipeline.as_mut().unwrap().play().unwrap();
 
                 self.spawn_tracker();
             }
-            ControllerState::Playing => {
+            Playing => {
                 self.pipeline.as_mut().unwrap().pause().await.unwrap();
                 self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
                 self.abort_tracker();
-                self.state = ControllerState::Paused;
+                self.state = Paused;
             }
-            ControllerState::Eos => {
+            EosPlaying => {
                 // Restart the stream from the begining
                 self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.state = ControllerState::Playing;
+                self.state = Playing;
 
-                self.seek(Timestamp::default(), gst::SeekFlags::ACCURATE)
-                    .await;
-
-                self.pipeline.as_mut().unwrap().play().unwrap();
-
-                self.spawn_tracker();
+                if self
+                    .seek(Timestamp::default(), gst::SeekFlags::ACCURATE)
+                    .await
+                    .is_ok()
+                {
+                    self.spawn_tracker();
+                }
             }
-            ControllerState::Stopped => self.select_media().await,
-            ControllerState::PendingSelectMediaDecision => (),
+            EosPaused => {
+                // Restart the stream from the begining
+                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
+                self.state = Playing;
+
+                if self
+                    .seek(Timestamp::default(), gst::SeekFlags::ACCURATE)
+                    .await
+                    .is_ok()
+                {
+                    self.pipeline.as_mut().unwrap().play().unwrap();
+                    self.spawn_tracker();
+                }
+            }
+            Stopped => self.select_media().await,
+            PendingSelectMediaDecision => (),
         }
     }
 
-    pub async fn seek(&mut self, position: Timestamp, flags: gst::SeekFlags) {
+    pub async fn seek(&mut self, position: Timestamp, flags: gst::SeekFlags) -> Result<(), ()> {
+        use ControllerState::*;
+
         match self.state {
-            ControllerState::Playing | ControllerState::Paused | ControllerState::Eos => {
+            Playing | Paused | EosPaused | EosPlaying => {
                 match self.pipeline.as_mut().unwrap().seek(position, flags).await {
-                    Ok(()) => self.info_ctrl.seek(position, self.state),
+                    Ok(()) => {
+                        self.info_ctrl.seek(position, self.state);
+
+                        match self.state {
+                            EosPlaying => self.state = Playing,
+                            EosPaused => self.state = Paused,
+                            _ => (),
+                        }
+                    }
                     Err(SeekError::Eos) => {
                         self.info_ctrl.seek(position, self.state);
                         self.ui_event.eos();
                     }
-                    Err(SeekError::Unrecoverable) => self.stop(),
+                    Err(SeekError::Unrecoverable) => {
+                        self.stop();
+                        return Err(());
+                    }
                 }
             }
             _ => (),
         }
+
+        Ok(())
     }
 
     pub fn current_ts(&mut self) -> Option<Timestamp> {
@@ -259,7 +292,14 @@ impl MainController {
 
     pub fn eos(&mut self) {
         self.play_pause_btn.set_icon_name(Some(PLAYBACK_ICON));
-        self.state = ControllerState::Eos;
+
+        use ControllerState::*;
+        match self.state {
+            Playing => self.state = EosPlaying,
+            Paused => self.state = EosPaused,
+            _ => (),
+        }
+
         self.abort_tracker();
     }
 
@@ -291,9 +331,8 @@ impl MainController {
     pub async fn select_media(&mut self) {
         self.abort_tracker();
 
-        match self.state {
-            ControllerState::Playing | ControllerState::Eos => self.hold().await,
-            _ => (),
+        if let ControllerState::Playing | ControllerState::EosPlaying = self.state {
+            self.hold().await;
         }
 
         self.state = ControllerState::PendingSelectMediaDecision;

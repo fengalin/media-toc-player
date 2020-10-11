@@ -314,7 +314,7 @@ impl InfoController {
 
         if self.repeat_chapter {
             // repeat is activated
-            if state == ControllerState::Eos {
+            if let ControllerState::EosPlaying = state {
                 // postpone chapter selection change until media has synchronized
                 position_status = PositionStatus::ChapterNotChanged;
                 self.repeat_at(Timestamp::default());

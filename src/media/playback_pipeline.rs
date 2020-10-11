@@ -127,7 +127,6 @@ impl Drop for PlaybackPipeline {
 
 /// Initialization
 impl PlaybackPipeline {
-    #[must_use]
     pub async fn try_new(
         path: &Path,
         video_sink: &Option<gst::Element>,
@@ -156,7 +155,6 @@ impl PlaybackPipeline {
         Ok(this)
     }
 
-    #[must_use]
     pub fn check_requirements() -> Result<(), String> {
         gst::ElementFactory::make("decodebin3", None)
             .map(drop)
@@ -242,7 +240,6 @@ impl PlaybackPipeline {
         });
     }
 
-    #[must_use]
     async fn open(&mut self) -> Result<(), OpenError> {
         let mut bus_stream = self.pipeline.get_bus().unwrap().stream();
 
@@ -386,7 +383,6 @@ impl PlaybackPipeline {
     }
 
     /// Purges previous internal messages if any.
-    #[must_use]
     fn purge_int_msg(&mut self) -> Result<(), PurgeError> {
         while let Ok(msg) = self.int_msg_rx.try_next() {
             match msg {
@@ -402,7 +398,6 @@ impl PlaybackPipeline {
         Ok(())
     }
 
-    #[must_use]
     pub async fn pause(&mut self) -> Result<(), StateChangeError> {
         self.purge_int_msg()?;
 
@@ -420,7 +415,6 @@ impl PlaybackPipeline {
         Ok(())
     }
 
-    #[must_use]
     pub fn play(&mut self) -> Result<(), StateChangeError> {
         self.purge_int_msg()?;
 
@@ -428,7 +422,6 @@ impl PlaybackPipeline {
         Ok(())
     }
 
-    #[must_use]
     pub fn stop(&mut self) -> Result<(), StateChangeError> {
         if let Some(bus_watch_src_id) = self.bus_watch_src_id.take() {
             glib::source_remove(bus_watch_src_id);
@@ -438,7 +431,6 @@ impl PlaybackPipeline {
         Ok(())
     }
 
-    #[must_use]
     pub async fn seek(
         &mut self,
         target: Timestamp,
@@ -469,7 +461,6 @@ impl PlaybackPipeline {
         Ok(())
     }
 
-    #[must_use]
     pub async fn select_streams(
         &mut self,
         stream_ids: &[Arc<str>],

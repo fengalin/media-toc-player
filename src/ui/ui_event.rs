@@ -199,7 +199,9 @@ impl UIEventHandler {
             UIEvent::ResetCursor => self.reset_cursor(),
             UIEvent::RestoreContext => self.restore_context(),
             UIEvent::ShowAll => self.show_all(),
-            UIEvent::Seek { target, flags } => self.main_ctrl_mut().seek(target, flags).await,
+            UIEvent::Seek { target, flags } => {
+                let _ = self.main_ctrl_mut().seek(target, flags).await;
+            }
             UIEvent::SelectMedia => self.main_ctrl_mut().select_media().await,
             UIEvent::SetCursorWaiting => self.set_cursor_waiting(),
             UIEvent::ShowError(msg) => self.info_bar_ctrl.show_error(&msg),
