@@ -191,7 +191,7 @@ impl MainController {
             Paused => {
                 self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
                 self.state = Playing;
-                self.pipeline.as_mut().unwrap().play().unwrap();
+                self.pipeline.as_mut().unwrap().play().await.unwrap();
 
                 self.spawn_tracker();
             }
@@ -201,7 +201,7 @@ impl MainController {
                 self.abort_tracker();
                 self.state = Paused;
             }
-            EosPlaying => {
+            EosPlaying | EosPaused => {
                 // Restart the stream from the begining
                 self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
                 self.state = Playing;
@@ -211,20 +211,7 @@ impl MainController {
                     .await
                     .is_ok()
                 {
-                    self.spawn_tracker();
-                }
-            }
-            EosPaused => {
-                // Restart the stream from the begining
-                self.play_pause_btn.set_icon_name(Some(PAUSE_ICON));
-                self.state = Playing;
-
-                if self
-                    .seek(Timestamp::default(), gst::SeekFlags::ACCURATE)
-                    .await
-                    .is_ok()
-                {
-                    self.pipeline.as_mut().unwrap().play().unwrap();
+                    self.pipeline.as_mut().unwrap().play().await.unwrap();
                     self.spawn_tracker();
                 }
             }

@@ -394,6 +394,13 @@ impl PlaybackPipeline {
 
                 let mut must_forward = false;
                 match msg.view() {
+                    StateChanged(state_changed) => {
+                        if state_changed.get_src().unwrap().get_type()
+                            == gst::Pipeline::static_type()
+                        {
+                            must_forward = true;
+                        }
+                    }
                     AsyncDone(_) => must_forward = true,
                     Eos(_) => {
                         ext_msg_tx.unbounded_send(MediaMessage::Eos).unwrap();
@@ -457,7 +464,7 @@ impl PlaybackPipeline {
         while let Some(msg) = self.int_msg_rx.next().await {
             use gst::MessageView::*;
             match msg.view() {
-                AsyncDone(_) => break,
+                StateChanged(_) => break,
                 Error(_) => return Err(StateChangeError),
                 _ => (),
             }
@@ -466,10 +473,20 @@ impl PlaybackPipeline {
         Ok(())
     }
 
-    pub fn play(&mut self) -> Result<(), StateChangeError> {
+    pub async fn play(&mut self) -> Result<(), StateChangeError> {
         self.purge_int_msg()?;
 
         self.pipeline.set_state(gst::State::Playing)?;
+
+        while let Some(msg) = self.int_msg_rx.next().await {
+            use gst::MessageView::*;
+            match msg.view() {
+                StateChanged(_) => break,
+                Error(_) => return Err(StateChangeError),
+                _ => (),
+            }
+        }
+
         Ok(())
     }
 
