@@ -1,4 +1,4 @@
-use futures::channel::mpsc as async_chan;
+use futures::channel::{mpsc as async_chan, oneshot};
 use futures::prelude::*;
 
 use gettextrs::gettext;
@@ -29,7 +29,25 @@ pub enum OpenError {
     StateChange,
 }
 
-// TODO impl Error for OpenError
+impl fmt::Display for OpenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OpenError::GLSinkError => write!(f, "Media: error with GL Sink"),
+            OpenError::Generic(err) => write!(f, "Media: error opening media {}", err),
+            OpenError::MissingPlugins(missing) => {
+                write!(f, "Media: found missing plugins {:?}", missing)
+            }
+            OpenError::StateChange => write!(f, "Media: state change error opening media"),
+        }
+    }
+}
+impl std::error::Error for OpenError {}
+
+impl From<gst::StateChangeError> for OpenError {
+    fn from(_: gst::StateChangeError) -> Self {
+        OpenError::StateChange
+    }
+}
 
 #[derive(Debug)]
 struct PurgeError;
@@ -148,11 +166,7 @@ impl PlaybackPipeline {
         };
 
         this.build_pipeline(path, video_sink);
-
-        this.open().await?;
-        this.register_bus_watch(ext_msg_tx, int_msg_tx);
-
-        Ok(this)
+        Self::open(this, ext_msg_tx, int_msg_tx).await
     }
 
     pub fn check_requirements() -> Result<(), String> {
@@ -240,96 +254,133 @@ impl PlaybackPipeline {
         });
     }
 
-    async fn open(&mut self) -> Result<(), OpenError> {
-        let mut bus_stream = self.pipeline.get_bus().unwrap().stream();
+    async fn open(
+        mut self,
+        ext_msg_tx: async_chan::UnboundedSender<MediaMessage>,
+        int_msg_tx: async_chan::UnboundedSender<gst::Message>,
+    ) -> Result<Self, OpenError> {
+        let pipeline = self.pipeline.clone();
 
-        self.pipeline
-            .set_state(gst::State::Paused)
-            .map(|_| ())
-            .map_err(|_| OpenError::StateChange)?;
+        let (handler_res_tx, handler_res_rx) = oneshot::channel();
+        Self::register_open_bus_watch(self, handler_res_tx);
 
-        let mut missing_plugins = HashSet::<String>::new();
-        let mut streams_selected = false;
+        pipeline.set_state(gst::State::Paused)?;
+        self = handler_res_rx.await.unwrap()?;
 
-        while let Some(msg) = bus_stream.next().await {
-            use gst::MessageView::*;
+        self.register_operations_bus_watch(ext_msg_tx, int_msg_tx);
 
-            match msg.view() {
-                Error(err) => {
-                    if "sink" == err.get_src().unwrap().get_name() {
-                        // Failure detected on a sink, this occurs when the GL sink
-                        // can't operate properly
-                        return Err(OpenError::GLSinkError);
-                    }
-
-                    return Err(OpenError::Generic(err.get_error().to_string()));
-                }
-                Element(element_msg) => {
-                    let structure = element_msg.get_structure().unwrap();
-                    if structure.get_name() == "missing-plugin" {
-                        let plugin = structure
-                            .get_value("name")
-                            .unwrap()
-                            .get::<String>()
-                            .unwrap()
-                            .unwrap();
-                        error!(
-                            "{}",
-                            gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
-                        );
-                        missing_plugins.insert(plugin);
-                    }
-                }
-                StreamCollection(stream_collection) => {
-                    stream_collection
-                        .get_stream_collection()
-                        .iter()
-                        .for_each(|stream| self.info.add_stream(&stream));
-                }
-                StreamsSelected(_) => streams_selected = true,
-                Tag(msg_tag) => {
-                    let tags = msg_tag.get_tags();
-                    if tags.get_scope() == gst::TagScope::Global {
-                        self.info.add_tags(&tags);
-                    }
-                }
-                Toc(msg_toc) => {
-                    // FIXME: use updated
-                    if self.info.toc.is_none() {
-                        let (toc, _updated) = msg_toc.get_toc();
-                        if toc.get_scope() == gst::TocScope::Global {
-                            self.info.toc = Some(toc);
-                        } else {
-                            warn!("skipping toc with scope: {:?}", toc.get_scope());
-                        }
-                    }
-                }
-                AsyncDone(_) => {
-                    if streams_selected {
-                        let duration = Duration::from_nanos(
-                            self.pipeline
-                                .query_duration::<gst::ClockTime>()
-                                .unwrap_or_else(|| 0.into())
-                                .nanoseconds()
-                                .unwrap(),
-                        );
-                        self.info.duration = duration;
-
-                        break;
-                    }
-                }
-                _ => (),
-            }
-        }
-
-        if !missing_plugins.is_empty() {
-            return Err(OpenError::MissingPlugins(missing_plugins));
-        }
-
-        Ok(())
+        Ok(self)
     }
 
-    fn register_bus_watch(
+    fn register_open_bus_watch(self, handler_res_tx: oneshot::Sender<Result<Self, OpenError>>) {
+        let mut handler_res_tx = Some(handler_res_tx);
+        let pipeline = self.pipeline.clone();
+        let mut this = Some(self);
+
+        let mut missing_plugins = Some(HashSet::<String>::new());
+        let mut streams_selected = false;
+
+        pipeline
+            .get_bus()
+            .unwrap()
+            .add_watch(move |_, msg| {
+                use gst::MessageView::*;
+
+                match msg.view() {
+                    Error(err) => {
+                        if "sink" == err.get_src().unwrap().get_name() {
+                            // Failure detected on a sink, this occurs when the GL sink
+                            // can't operate properly
+                            let _ = handler_res_tx
+                                .take()
+                                .unwrap()
+                                .send(Err(OpenError::GLSinkError));
+                            return glib::Continue(false);
+                        }
+
+                        let _ = handler_res_tx
+                            .take()
+                            .unwrap()
+                            .send(Err(OpenError::Generic(err.get_error().to_string())));
+                        return glib::Continue(false);
+                    }
+                    Element(element_msg) => {
+                        let structure = element_msg.get_structure().unwrap();
+                        if structure.get_name() == "missing-plugin" {
+                            let plugin = structure
+                                .get_value("name")
+                                .unwrap()
+                                .get::<String>()
+                                .unwrap()
+                                .unwrap();
+                            error!(
+                                "{}",
+                                gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
+                            );
+                            missing_plugins.as_mut().unwrap().insert(plugin);
+                        }
+                    }
+                    StreamCollection(stream_collection) => {
+                        stream_collection
+                            .get_stream_collection()
+                            .iter()
+                            .for_each(|stream| this.as_mut().unwrap().info.add_stream(&stream));
+                    }
+                    StreamsSelected(_) => streams_selected = true,
+                    Tag(msg_tag) => {
+                        let tags = msg_tag.get_tags();
+                        if tags.get_scope() == gst::TagScope::Global {
+                            this.as_mut().unwrap().info.add_tags(&tags);
+                        }
+                    }
+                    Toc(msg_toc) => {
+                        // FIXME: use updated
+                        let mut this = this.as_mut().unwrap();
+                        if this.info.toc.is_none() {
+                            let (toc, _updated) = msg_toc.get_toc();
+                            if toc.get_scope() == gst::TocScope::Global {
+                                this.info.toc = Some(toc);
+                            } else {
+                                warn!("skipping toc with scope: {:?}", toc.get_scope());
+                            }
+                        }
+                    }
+                    AsyncDone(_) => {
+                        // FIXME can we wait until streams_selected when plugins are missing?
+                        if streams_selected {
+                            let missing_plugins = missing_plugins.take().unwrap();
+                            if missing_plugins.is_empty() {
+                                let mut this = this.take().unwrap();
+
+                                let duration = Duration::from_nanos(
+                                    this.pipeline
+                                        .query_duration::<gst::ClockTime>()
+                                        .unwrap_or_else(|| 0.into())
+                                        .nanoseconds()
+                                        .unwrap(),
+                                );
+                                this.info.duration = duration;
+
+                                let _ = handler_res_tx.take().unwrap().send(Ok(this));
+                            } else {
+                                let _ = handler_res_tx
+                                    .take()
+                                    .unwrap()
+                                    .send(Err(OpenError::MissingPlugins(missing_plugins)));
+                            }
+
+                            return glib::Continue(false);
+                        }
+                    }
+                    _ => (),
+                }
+
+                glib::Continue(true)
+            })
+            .unwrap();
+    }
+
+    fn register_operations_bus_watch(
         &mut self,
         ext_msg_tx: async_chan::UnboundedSender<MediaMessage>,
         int_msg_tx: async_chan::UnboundedSender<gst::Message>,
