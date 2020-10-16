@@ -7,7 +7,7 @@ use gst::prelude::*;
 use gst::ClockTime;
 use gstreamer as gst;
 
-use log::{error, info, warn};
+use log::{info, warn};
 
 use std::{collections::HashSet, convert::AsRef, fmt, path::Path, sync::Arc};
 
@@ -21,26 +21,67 @@ pub enum MediaMessage {
     Error(String),
 }
 
+pub struct MissingPlugins(HashSet<String>);
+
+impl MissingPlugins {
+    fn new() -> Self {
+        MissingPlugins(HashSet::<String>::new())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn insert(&mut self, plugin: String) {
+        self.0.insert(plugin);
+    }
+}
+
+impl fmt::Debug for MissingPlugins {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner_res = fmt::Display::fmt(&self, f);
+        f.debug_tuple("MissingPlugins").field(&inner_res).finish()
+    }
+}
+
+impl fmt::Display for MissingPlugins {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (idx, plugin) in self.0.iter().enumerate() {
+            if idx > 0 {
+                f.write_str(", ")?;
+            }
+            f.write_str(plugin)?
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub enum OpenError {
     GLSinkError,
     Generic(String),
-    MissingPlugins(HashSet<String>),
+    MissingPlugins(MissingPlugins),
     StateChange,
 }
 
 impl fmt::Display for OpenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use OpenError::*;
+
         match self {
-            OpenError::GLSinkError => write!(f, "Media: error with GL Sink"),
-            OpenError::Generic(err) => write!(f, "Media: error opening media {}", err),
-            OpenError::MissingPlugins(missing) => {
-                write!(f, "Media: found missing plugins {:?}", missing)
-            }
-            OpenError::StateChange => write!(f, "Media: state change error opening media"),
+            GLSinkError => write!(f, "Media: error with GL Sink"),
+            Generic(err) => write!(f, "Media: error opening media {}", err),
+            MissingPlugins(missing) => write!(f, "Media: found missing plugins {}", missing),
+            StateChange => write!(f, "Media: state change error opening media"),
         }
     }
 }
+
 impl std::error::Error for OpenError {}
 
 impl From<gst::StateChangeError> for OpenError {
@@ -88,9 +129,11 @@ impl From<PurgeError> for SeekError {
 
 impl fmt::Display for SeekError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use SeekError::*;
+
         match self {
-            SeekError::Eos => write!(f, "Media: seeking past the end"),
-            SeekError::Unrecoverable => write!(f, "Media: couldn't seek"),
+            Eos => write!(f, "Media: seeking past the end"),
+            Unrecoverable => write!(f, "Media: couldn't seek"),
         }
     }
 }
@@ -129,18 +172,10 @@ impl std::error::Error for SelectStreamsError {}
 pub struct PlaybackPipeline {
     pipeline: gst::Pipeline,
     pub info: MediaInfo,
+    pub missing_plugins: MissingPlugins,
     pub media_msg_rx: Option<async_chan::UnboundedReceiver<MediaMessage>>,
     int_msg_rx: async_chan::UnboundedReceiver<gst::Message>,
     bus_watch_src_id: Option<glib::SourceId>,
-}
-
-// FIXME: might need to `release_request_pad` on the tee
-impl Drop for PlaybackPipeline {
-    fn drop(&mut self) {
-        if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
-            self.pipeline.remove(&video_sink).unwrap();
-        }
-    }
 }
 
 /// Initialization
@@ -160,6 +195,7 @@ impl PlaybackPipeline {
         let mut this = PlaybackPipeline {
             pipeline: gst::Pipeline::new(Some("playback_pipeline")),
             info: MediaInfo::new(path),
+            missing_plugins: MissingPlugins::new(),
             media_msg_rx: Some(ext_msg_rx),
             int_msg_rx,
             bus_watch_src_id: None,
@@ -277,7 +313,6 @@ impl PlaybackPipeline {
         let pipeline = self.pipeline.clone();
         let mut this = Some(self);
 
-        let mut missing_plugins = Some(HashSet::<String>::new());
         let mut streams_selected = false;
 
         pipeline
@@ -286,8 +321,12 @@ impl PlaybackPipeline {
             .add_watch(move |_, msg| {
                 use gst::MessageView::*;
 
+                //println!("{:?}", msg);
                 match msg.view() {
                     Error(err) => {
+                        let mut this = this.take().unwrap();
+                        this.cleanup();
+
                         if "sink" == err.get_src().unwrap().get_name() {
                             // Failure detected on a sink, this occurs when the GL sink
                             // can't operate properly
@@ -295,6 +334,19 @@ impl PlaybackPipeline {
                                 .take()
                                 .unwrap()
                                 .send(Err(OpenError::GLSinkError));
+
+                            return glib::Continue(false);
+                        }
+
+                        let PlaybackPipeline {
+                            missing_plugins, ..
+                        } = this;
+                        if !missing_plugins.is_empty() {
+                            let _ = handler_res_tx
+                                .take()
+                                .unwrap()
+                                .send(Err(OpenError::MissingPlugins(missing_plugins)));
+
                             return glib::Continue(false);
                         }
 
@@ -302,6 +354,7 @@ impl PlaybackPipeline {
                             .take()
                             .unwrap()
                             .send(Err(OpenError::Generic(err.get_error().to_string())));
+
                         return glib::Continue(false);
                     }
                     Element(element_msg) => {
@@ -313,20 +366,25 @@ impl PlaybackPipeline {
                                 .get::<String>()
                                 .unwrap()
                                 .unwrap();
-                            error!(
+
+                            warn!(
                                 "{}",
                                 gettext("Missing plugin: {}").replacen("{}", &plugin, 1)
                             );
-                            missing_plugins.as_mut().unwrap().insert(plugin);
+                            this.as_mut().unwrap().missing_plugins.insert(plugin);
                         }
                     }
                     StreamCollection(stream_collection) => {
+                        let this = this.as_mut().unwrap();
                         stream_collection
                             .get_stream_collection()
                             .iter()
-                            .for_each(|stream| this.as_mut().unwrap().info.add_stream(&stream));
+                            .for_each(|stream| this.info.add_stream(&stream));
                     }
-                    StreamsSelected(_) => streams_selected = true,
+                    // FIXME really still necessary can't we just use StateChanged?
+                    StreamsSelected(_) => {
+                        streams_selected = true;
+                    }
                     Tag(msg_tag) => {
                         let tags = msg_tag.get_tags();
                         if tags.get_scope() == gst::TagScope::Global {
@@ -346,28 +404,20 @@ impl PlaybackPipeline {
                         }
                     }
                     AsyncDone(_) => {
-                        // FIXME can we wait until streams_selected when plugins are missing?
+                        // FIXME StateChanged?
                         if streams_selected {
-                            let missing_plugins = missing_plugins.take().unwrap();
-                            if missing_plugins.is_empty() {
-                                let mut this = this.take().unwrap();
+                            let mut this = this.take().unwrap();
 
-                                let duration = Duration::from_nanos(
-                                    this.pipeline
-                                        .query_duration::<gst::ClockTime>()
-                                        .unwrap_or_else(|| 0.into())
-                                        .nanoseconds()
-                                        .unwrap(),
-                                );
-                                this.info.duration = duration;
+                            let duration = Duration::from_nanos(
+                                this.pipeline
+                                    .query_duration::<gst::ClockTime>()
+                                    .unwrap_or_else(|| 0.into())
+                                    .nanoseconds()
+                                    .unwrap(),
+                            );
+                            this.info.duration = duration;
 
-                                let _ = handler_res_tx.take().unwrap().send(Ok(this));
-                            } else {
-                                let _ = handler_res_tx
-                                    .take()
-                                    .unwrap()
-                                    .send(Err(OpenError::MissingPlugins(missing_plugins)));
-                            }
+                            let _ = handler_res_tx.take().unwrap().send(Ok(this));
 
                             return glib::Continue(false);
                         }
@@ -424,6 +474,12 @@ impl PlaybackPipeline {
             .unwrap();
 
         self.bus_watch_src_id = Some(bus_watch_src_id);
+    }
+
+    fn cleanup(&mut self) {
+        if let Some(video_sink) = self.pipeline.get_by_name("video_sink") {
+            self.pipeline.remove(&video_sink).unwrap();
+        }
     }
 }
 
@@ -495,7 +551,10 @@ impl PlaybackPipeline {
             glib::source_remove(bus_watch_src_id);
         }
 
-        self.pipeline.set_state(gst::State::Null)?;
+        let res = self.pipeline.set_state(gst::State::Null);
+        self.cleanup();
+        res?;
+
         Ok(())
     }
 

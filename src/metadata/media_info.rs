@@ -97,7 +97,7 @@ macro_rules! get_tag_for_display (
     };
 );
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Stream {
     pub id: Arc<str>,
     pub codec_printable: String,
@@ -148,7 +148,7 @@ impl Stream {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Streams {
     pub audio: HashMap<Arc<str>, Stream>,
     pub video: HashMap<Arc<str>, Stream>,
@@ -180,10 +180,6 @@ impl Streams {
             }
             _ => panic!("MediaInfo::add_stream can't handle {:?}", stream.type_),
         }
-    }
-
-    pub fn is_audio_selected(&self) -> bool {
-        self.cur_audio_id.is_some()
     }
 
     pub fn is_video_selected(&self) -> bool {
@@ -293,7 +289,7 @@ impl Streams {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MediaInfo {
     pub name: String,
     pub file_name: String,

@@ -360,8 +360,11 @@ impl MainController {
         self.perspective_ctrl.cleanup();
         self.header_bar.set_subtitle(Some(""));
 
-        match PlaybackPipeline::try_new(path.as_ref(), &self.video_ctrl.get_video_sink()).await {
+        CONFIG.write().unwrap().media.last_path = path.parent().map(ToOwned::to_owned);
+
+        match PlaybackPipeline::try_new(path.as_ref(), &self.video_ctrl.video_sink()).await {
             Ok(mut pipeline) => {
+                /*
                 if !pipeline.info.streams.is_audio_selected()
                     && !pipeline.info.streams.is_video_selected()
                 {
@@ -372,8 +375,16 @@ impl MainController {
 
                     return;
                 }
+                */
 
-                CONFIG.write().unwrap().media.last_path = path.parent().map(ToOwned::to_owned);
+                if !pipeline.missing_plugins.is_empty() {
+                    self.ui_event
+                        .show_info(gettext("Some plugins are missing:\n{}").replacen(
+                            "{}",
+                            &format!("{}", pipeline.missing_plugins),
+                            1,
+                        ));
+                }
 
                 self.header_bar
                     .set_subtitle(Some(pipeline.info.file_name.as_str()));
@@ -416,25 +427,12 @@ impl MainController {
 
                 let error = match error {
                     OpenError::Generic(error) => error,
-                    OpenError::MissingPlugins(plugins) => {
-                        let mut missing_nb = 0;
-                        let mut missing_list = String::new();
-
-                        plugins.iter().for_each(|plugin| {
-                            if missing_nb > 0 {
-                                missing_list += ", ";
-                            }
-
-                            missing_list += plugin;
-                            missing_nb += 1;
-                        });
-
-                        ngettext("Missing plugin: {}", "Missing plugins: {}", missing_nb).replacen(
-                            "{}",
-                            &missing_list,
-                            1,
-                        )
-                    }
+                    OpenError::MissingPlugins(plugins) => ngettext(
+                        "Missing plugin: {}",
+                        "Missing plugins:\n{}",
+                        plugins.len() as u32,
+                    )
+                    .replacen("{}", &format!("{}", plugins), 1),
                     OpenError::StateChange => gettext("Failed to switch the pipeline to Paused"),
                     OpenError::GLSinkError => {
                         let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");

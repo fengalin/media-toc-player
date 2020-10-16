@@ -251,9 +251,9 @@ msgstr "Más información acerca de media-toc-player"
 
 #: src/ui/main_controller.rs:285 src/ui/main_controller.rs:349
 msgid "Missing plugin: {}"
-msgid_plural "Missing plugins: {}"
+msgid_plural "Missing plugins:\n{}"
 msgstr[0] "No se encontró el plugin: {}"
-msgstr[1] "No se encontraron los plugins: {}"
+msgstr[1] "No se encontraron los plugins:\n{}"
 
 #: src/ui/main_controller.rs:374 src/ui/main_controller.rs:457
 msgid ""

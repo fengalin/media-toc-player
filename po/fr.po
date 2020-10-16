@@ -249,9 +249,9 @@ msgstr "En apprendre plus sur media-toc-player"
 
 #: src/ui/main_controller.rs:285 src/ui/main_controller.rs:349
 msgid "Missing plugin: {}"
-msgid_plural "Missing plugins: {}"
+msgid_plural "Missing plugins:\n{}"
 msgstr[0] "Greffon manquant : {}"
-msgstr[1] "Greffons manquants : {}"
+msgstr[1] "Greffons manquants :\n{}"
 
 #: src/ui/main_controller.rs:374 src/ui/main_controller.rs:457
 msgid ""
