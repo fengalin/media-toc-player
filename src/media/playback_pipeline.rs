@@ -52,9 +52,10 @@ impl fmt::Display for MissingPlugins {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (idx, plugin) in self.0.iter().enumerate() {
             if idx > 0 {
-                f.write_str(", ")?;
+                f.write_str("\n")?;
             }
-            f.write_str(plugin)?
+            f.write_str("- ")?;
+            f.write_str(plugin)?;
         }
 
         Ok(())

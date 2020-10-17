@@ -12,7 +12,9 @@ use std::{borrow::ToOwned, cell::RefCell, path::PathBuf, rc::Rc, sync::Arc};
 
 use crate::{
     application::{CommandLineArguments, APP_ID, APP_PATH, CONFIG},
-    media::{MediaMessage, PlaybackPipeline, SeekError, SelectStreamsError, Timestamp},
+    media::{
+        MediaMessage, MissingPlugins, PlaybackPipeline, SeekError, SelectStreamsError, Timestamp,
+    },
 };
 
 use super::{
@@ -364,25 +366,11 @@ impl MainController {
 
         match PlaybackPipeline::try_new(path.as_ref(), &self.video_ctrl.video_sink()).await {
             Ok(mut pipeline) => {
-                /*
-                if !pipeline.info.streams.is_audio_selected()
-                    && !pipeline.info.streams.is_video_selected()
-                {
-                    self.ui_event.reset_cursor();
-                    let error = gettext("Error opening file.\n\n{}")
-                        .replace("{}", &gettext("No usable streams could be found."));
-                    self.ui_event.show_error(error);
-
-                    return;
-                }
-                */
-
                 if !pipeline.missing_plugins.is_empty() {
                     self.ui_event
-                        .show_info(gettext("Some plugins are missing:\n{}").replacen(
+                        .show_info(gettext("Some streams are not usable. {}").replace(
                             "{}",
-                            &format!("{}", pipeline.missing_plugins),
-                            1,
+                            &Self::format_missing_plugins(&pipeline.missing_plugins),
                         ));
                 }
 
@@ -401,7 +389,7 @@ impl MainController {
                         match msg {
                             MediaMessage::Eos => ui_event.eos(),
                             MediaMessage::Error(err) => {
-                                let err = gettext("An unrecoverable error occured {}")
+                                let err = gettext("An unrecoverable error occured. {}")
                                     .replace("{}", &err);
                                 error!("{}", err);
                                 ui_event.show_error(err);
@@ -427,13 +415,8 @@ impl MainController {
 
                 let error = match error {
                     OpenError::Generic(error) => error,
-                    OpenError::MissingPlugins(plugins) => ngettext(
-                        "Missing plugin: {}",
-                        "Missing plugins:\n{}",
-                        plugins.len() as u32,
-                    )
-                    .replacen("{}", &format!("{}", plugins), 1),
-                    OpenError::StateChange => gettext("Failed to switch the pipeline to Paused"),
+                    OpenError::MissingPlugins(plugins) => Self::format_missing_plugins(&plugins),
+                    OpenError::StateChange => gettext("Failed to switch the media to Paused"),
                     OpenError::GLSinkError => {
                         let mut config = CONFIG.write().expect("Failed to get CONFIG as mut");
                         config.media.is_gl_disabled = true;
@@ -446,9 +429,18 @@ impl MainController {
                 };
 
                 self.ui_event
-                    .show_error(gettext("Error opening file.\n\n{}").replace("{}", &error));
+                    .show_error(gettext("Error opening file. {}").replace("{}", &error));
             }
         };
+    }
+
+    fn format_missing_plugins(plugins: &MissingPlugins) -> String {
+        ngettext(
+            "Missing plugin:\n{}",
+            "Missing plugins:\n{}",
+            plugins.len() as u32,
+        )
+        .replacen("{}", &format!("{}", plugins), 1)
     }
 
     pub fn cancel_select_media(&mut self) {
