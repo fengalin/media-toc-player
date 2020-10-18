@@ -17,6 +17,8 @@ use super::{
 };
 
 const EMPTY_REPLACEMENT: &str = "-";
+const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
+pub const SEEK_STEP: Duration = Duration::from_nanos(2_500_000_000);
 
 pub struct InfoController {
     ui_event: UIEventSender,
@@ -358,5 +360,37 @@ impl InfoController {
 
     pub fn seek(&mut self, target: Timestamp, state: ControllerState) {
         self.tick(target, state);
+    }
+
+    pub fn toggle_chapter_list(&self, must_show: bool) {
+        CONFIG.write().unwrap().ui.is_chapters_list_hidden = must_show;
+
+        if must_show {
+            self.info_container.hide();
+        } else {
+            self.info_container.show();
+        }
+    }
+
+    pub fn previous_chapter(&self, cur_ts: Timestamp) -> Option<Timestamp> {
+        let cur_start = self
+            .chapter_manager
+            .selected()
+            .map(|sel_chapter| sel_chapter.start());
+        let prev_start = self
+            .chapter_manager
+            .pick_previous()
+            .map(|prev_chapter| prev_chapter.start());
+
+        match (cur_start, prev_start) {
+            (Some(cur_start), prev_start_opt) => {
+                if cur_ts > cur_start + GO_TO_PREV_CHAPTER_THRESHOLD {
+                    Some(cur_start)
+                } else {
+                    prev_start_opt
+                }
+            }
+            (None, prev_start_opt) => prev_start_opt,
+        }
     }
 }

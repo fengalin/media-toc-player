@@ -16,10 +16,13 @@ pub enum UIFocusContext {
 #[derive(Debug)]
 pub enum UIEvent {
     CancelSelectMedia,
+    ChapterClicked(gtk::TreePath),
     Eos,
     HideInfoBar,
+    NextChapter,
     OpenMedia(PathBuf),
     PlayPause,
+    PreviousChapter,
     Quit,
     ResetCursor,
     RestoreContext,
@@ -32,8 +35,12 @@ pub enum UIEvent {
     SetCursorWaiting,
     ShowError(Cow<'static, str>),
     ShowInfo(Cow<'static, str>),
+    StepBack,
+    StepForward,
     SwitchTo(UIFocusContext),
     TemporarilySwitchTo(UIFocusContext),
+    ToggleChapterList(bool),
+    ToggleRepeat(bool),
     UpdateFocus,
 }
 
@@ -51,12 +58,20 @@ impl UIEventSender {
         self.reset_cursor();
     }
 
+    pub fn chapter_clicked(&self, tree_path: gtk::TreePath) {
+        self.send(UIEvent::ChapterClicked(tree_path));
+    }
+
     pub fn eos(&self) {
         self.send(UIEvent::Eos);
     }
 
     pub fn hide_info_bar(&self) {
         self.send(UIEvent::HideInfoBar);
+    }
+
+    pub fn next_chapter(&self) {
+        self.send(UIEvent::NextChapter);
     }
 
     pub fn open_media(&self, path: PathBuf) {
@@ -66,6 +81,10 @@ impl UIEventSender {
 
     pub fn play_pause(&self) {
         self.send(UIEvent::PlayPause);
+    }
+
+    pub fn previous_chapter(&self) {
+        self.send(UIEvent::PreviousChapter);
     }
 
     pub fn quit(&self) {
@@ -110,6 +129,14 @@ impl UIEventSender {
         self.send(UIEvent::ShowInfo(msg.into()));
     }
 
+    pub fn step_back(&self) {
+        self.send(UIEvent::StepBack);
+    }
+
+    pub fn step_forward(&self) {
+        self.send(UIEvent::StepForward);
+    }
+
     pub fn switch_to(&self, ctx: UIFocusContext) {
         self.send(UIEvent::SwitchTo(ctx));
     }
@@ -117,6 +144,14 @@ impl UIEventSender {
     // Call `restore_context` to retrieve initial state
     pub fn temporarily_switch_to(&self, ctx: UIFocusContext) {
         self.send(UIEvent::TemporarilySwitchTo(ctx));
+    }
+
+    pub fn toggle_chapter_list(&self, must_show: bool) {
+        self.send(UIEvent::ToggleChapterList(must_show));
+    }
+
+    pub fn toggle_repeat(&self, must_repeat: bool) {
+        self.send(UIEvent::ToggleRepeat(must_repeat));
     }
 
     pub fn update_focus(&self) {

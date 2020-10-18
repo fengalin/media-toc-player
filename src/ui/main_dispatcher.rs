@@ -7,14 +7,17 @@ use gettextrs::gettext;
 
 use gio::prelude::*;
 use glib::clone;
+use gstreamer as gst;
 use gtk::prelude::*;
 
 use log::debug;
 
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
+use crate::media::Timestamp;
+
 use super::{
-    spawn, ui_event::UIEvent, InfoBarController, InfoDispatcher, MainController,
+    info_controller, spawn, ui_event::UIEvent, InfoBarController, InfoDispatcher, MainController,
     PerspectiveDispatcher, PlaybackPipeline, StreamsDispatcher, UIController, UIDispatcher,
     UIFocusContext, VideoDispatcher,
 };
@@ -159,10 +162,47 @@ impl MainDispatcher {
 
         match event {
             CancelSelectMedia => self.main_ctrl.borrow_mut().cancel_select_media(),
+            ChapterClicked(tree_path) => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                let seek_ts = main_ctrl
+                    .info_ctrl
+                    .chapter_manager
+                    .chapter_from_path(&tree_path)
+                    .map(|chapter| chapter.start());
+
+                if let Some(seek_ts) = seek_ts {
+                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE).await;
+                }
+            }
             Eos => self.main_ctrl.borrow_mut().eos(),
             HideInfoBar => self.info_bar_ctrl.hide(),
+            NextChapter => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                let seek_ts = main_ctrl
+                    .info_ctrl
+                    .chapter_manager
+                    .pick_next()
+                    .map(|next_chapter| next_chapter.start());
+
+                if let Some(seek_ts) = seek_ts {
+                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE).await;
+                }
+            }
             OpenMedia(path) => self.main_ctrl.borrow_mut().open_media(path).await,
             PlayPause => self.main_ctrl.borrow_mut().play_pause().await,
+            PreviousChapter => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                let seek_ts = main_ctrl
+                    .current_ts()
+                    .and_then(|cur_ts| main_ctrl.info_ctrl.previous_chapter(cur_ts));
+
+                let _ = main_ctrl
+                    .seek(
+                        seek_ts.unwrap_or_else(Timestamp::default),
+                        gst::SeekFlags::ACCURATE,
+                    )
+                    .await;
+            }
             Quit => {
                 self.main_ctrl.borrow_mut().quit();
                 return Err(());
@@ -177,10 +217,32 @@ impl MainDispatcher {
             SetCursorWaiting => self.set_cursor_waiting(),
             ShowError(msg) => self.info_bar_ctrl.show_error(&msg),
             ShowInfo(msg) => self.info_bar_ctrl.show_info(&msg),
+            StepBack => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                if let Some(current_ts) = main_ctrl.current_ts() {
+                    let seek_ts = current_ts.saturating_sub(info_controller::SEEK_STEP);
+                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE).await;
+                }
+            }
+            StepForward => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                if let Some(current_ts) = main_ctrl.current_ts() {
+                    let seek_ts = current_ts + info_controller::SEEK_STEP;
+                    let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE).await;
+                }
+            }
             SwitchTo(focus_ctx) => self.switch_to(focus_ctx),
             TemporarilySwitchTo(focus_ctx) => {
                 self.save_context();
                 self.bind_accels_for(focus_ctx);
+            }
+            ToggleChapterList(must_show) => self
+                .main_ctrl
+                .borrow()
+                .info_ctrl
+                .toggle_chapter_list(must_show),
+            ToggleRepeat(must_repeat) => {
+                self.main_ctrl.borrow_mut().info_ctrl.repeat_chapter = must_repeat
             }
             UpdateFocus => self.update_focus(),
         }
