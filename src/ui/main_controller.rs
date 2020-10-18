@@ -18,8 +18,8 @@ use crate::{
 };
 
 use super::{
-    spawn, InfoController, MainDispatcher, PerspectiveController, StreamsController, UIController,
-    UIEventHandler, UIEventSender, VideoController,
+    spawn, ui_event, InfoController, MainDispatcher, PerspectiveController, StreamsController,
+    UIController, UIEventSender, VideoController,
 };
 
 const PAUSE_ICON: &str = "media-playback-pause-symbolic";
@@ -69,7 +69,7 @@ impl MainController {
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(Some(app));
 
-        let (mut ui_event_handler, ui_event) = UIEventHandler::new_pair(&app, &builder);
+        let (ui_event, ui_event_receiver) = ui_event::new_pair();
 
         let file_dlg = gtk::FileChooserNativeBuilder::new()
             .title(&gettext("Open a media file"))
@@ -91,7 +91,7 @@ impl MainController {
         let gst_init_res = gst::init();
 
         let main_ctrl_rc = Rc::new(RefCell::new(MainController {
-            window,
+            window: window.clone(),
             window_delete_id: None,
 
             header_bar: builder.get_object("header-bar").unwrap(),
@@ -116,11 +116,15 @@ impl MainController {
             tracker_abort_handle: None,
         }));
 
-        ui_event_handler.have_main_ctrl(&main_ctrl_rc);
-        ui_event_handler.spawn();
-
         let mut main_ctrl = main_ctrl_rc.borrow_mut();
-        MainDispatcher::setup(&mut main_ctrl, &main_ctrl_rc, app);
+        MainDispatcher::setup(
+            &mut main_ctrl,
+            &main_ctrl_rc,
+            app,
+            &window,
+            &builder,
+            ui_event_receiver,
+        );
 
         if gst_init_res.is_ok() {
             {

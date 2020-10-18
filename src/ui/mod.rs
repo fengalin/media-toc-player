@@ -28,7 +28,7 @@ mod streams_dispatcher;
 use self::streams_dispatcher::StreamsDispatcher;
 
 mod ui_event;
-use self::ui_event::{UIEventHandler, UIEventSender, UIFocusContext};
+use self::ui_event::{UIEventSender, UIFocusContext};
 
 mod video_controller;
 use self::video_controller::VideoController;

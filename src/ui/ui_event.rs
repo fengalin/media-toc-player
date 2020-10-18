@@ -1,25 +1,10 @@
 use futures::channel::mpsc as async_mpsc;
-use futures::prelude::*;
 
-use gdk::{Cursor, CursorType, WindowExt};
 use gstreamer as gst;
-use gtk::prelude::*;
 
-use log::debug;
-
-use std::{
-    borrow::Cow,
-    cell::{Ref, RefCell, RefMut},
-    path::PathBuf,
-    rc::Rc,
-};
+use std::{borrow::Cow, cell::RefCell, path::PathBuf};
 
 use crate::media::Timestamp;
-
-use super::{
-    spawn, InfoBarController, InfoDispatcher, MainController, PerspectiveDispatcher,
-    StreamsDispatcher, UIController, UIDispatcher, VideoDispatcher,
-};
 
 #[derive(Clone, Copy, Debug)]
 pub enum UIFocusContext {
@@ -29,7 +14,7 @@ pub enum UIFocusContext {
 }
 
 #[derive(Debug)]
-enum UIEvent {
+pub enum UIEvent {
     CancelSelectMedia,
     Eos,
     HideInfoBar,
@@ -139,170 +124,9 @@ impl UIEventSender {
     }
 }
 
-pub struct UIEventHandler {
-    receiver: async_mpsc::UnboundedReceiver<UIEvent>,
-    app: gtk::Application,
-    window: gtk::ApplicationWindow,
-    main_ctrl: Option<Rc<RefCell<MainController>>>,
-    info_bar_ctrl: InfoBarController,
-    saved_context: Option<UIFocusContext>,
-    focus: UIFocusContext,
-}
+pub fn new_pair() -> (UIEventSender, async_mpsc::UnboundedReceiver<UIEvent>) {
+    let (sender, receiver) = async_mpsc::unbounded();
+    let sender = UIEventSender(RefCell::new(sender));
 
-impl UIEventHandler {
-    pub fn new_pair(app: &gtk::Application, builder: &gtk::Builder) -> (Self, UIEventSender) {
-        let (sender, receiver) = async_mpsc::unbounded();
-        let ui_event_sender = UIEventSender(RefCell::new(sender));
-
-        let handler = UIEventHandler {
-            receiver,
-            app: app.clone(),
-            window: builder.get_object("application-window").unwrap(),
-            main_ctrl: None,
-            info_bar_ctrl: InfoBarController::new(app, builder, &ui_event_sender),
-            saved_context: None,
-            focus: UIFocusContext::PlaybackPage,
-        };
-
-        (handler, ui_event_sender)
-    }
-
-    pub fn have_main_ctrl(&mut self, main_ctrl: &Rc<RefCell<MainController>>) {
-        self.main_ctrl = Some(Rc::clone(&main_ctrl));
-    }
-
-    pub fn spawn(mut self) {
-        assert!(self.main_ctrl.is_some());
-        spawn(async move {
-            while let Some(event) = self.receiver.next().await {
-                debug!("handling event {:?}", event);
-                if self.handle(event).await.is_err() {
-                    break;
-                }
-            }
-        });
-    }
-
-    #[inline]
-    fn main_ctrl(&self) -> Ref<'_, MainController> {
-        self.main_ctrl.as_ref().unwrap().borrow()
-    }
-
-    #[inline]
-    fn main_ctrl_mut(&self) -> RefMut<'_, MainController> {
-        self.main_ctrl.as_ref().unwrap().borrow_mut()
-    }
-
-    async fn handle(&mut self, event: UIEvent) -> Result<(), ()> {
-        match event {
-            UIEvent::CancelSelectMedia => self.main_ctrl_mut().cancel_select_media(),
-            UIEvent::Eos => self.main_ctrl_mut().eos(),
-            UIEvent::HideInfoBar => self.info_bar_ctrl.hide(),
-            UIEvent::OpenMedia(path) => self.main_ctrl_mut().open_media(path).await,
-            UIEvent::PlayPause => self.main_ctrl_mut().play_pause().await,
-            UIEvent::Quit => {
-                self.main_ctrl_mut().quit();
-                return Err(());
-            }
-            UIEvent::ResetCursor => self.reset_cursor(),
-            UIEvent::RestoreContext => self.restore_context(),
-            UIEvent::ShowAll => self.show_all(),
-            UIEvent::Seek { target, flags } => {
-                let _ = self.main_ctrl_mut().seek(target, flags).await;
-            }
-            UIEvent::SelectMedia => self.main_ctrl_mut().select_media().await,
-            UIEvent::SetCursorWaiting => self.set_cursor_waiting(),
-            UIEvent::ShowError(msg) => self.info_bar_ctrl.show_error(&msg),
-            UIEvent::ShowInfo(msg) => self.info_bar_ctrl.show_info(&msg),
-            UIEvent::SwitchTo(focus_ctx) => self.switch_to(focus_ctx),
-            UIEvent::TemporarilySwitchTo(focus_ctx) => {
-                self.save_context();
-                self.bind_accels_for(focus_ctx);
-            }
-            UIEvent::UpdateFocus => self.update_focus(),
-        }
-
-        Ok(())
-    }
-
-    pub fn show_all(&self) {
-        self.window.show();
-        self.window.activate();
-    }
-
-    fn set_cursor_waiting(&self) {
-        if let Some(gdk_window) = self.window.get_window() {
-            gdk_window.set_cursor(Some(&Cursor::new_for_display(
-                &gdk_window.get_display(),
-                CursorType::Watch,
-            )));
-        }
-    }
-
-    fn reset_cursor(&self) {
-        if let Some(gdk_window) = self.window.get_window() {
-            gdk_window.set_cursor(None);
-        }
-    }
-
-    fn bind_accels_for(&self, ctx: UIFocusContext) {
-        match ctx {
-            UIFocusContext::PlaybackPage => {
-                self.app
-                    .set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
-                self.app
-                    .set_accels_for_action("app.next_chapter", &["Down", "AudioNext"]);
-                self.app
-                    .set_accels_for_action("app.previous_chapter", &["Up", "AudioPrev"]);
-                self.app.set_accels_for_action("app.close_info_bar", &[]);
-            }
-            UIFocusContext::StreamsPage => {
-                self.app
-                    .set_accels_for_action("app.play_pause", &["space", "AudioPlay"]);
-                self.app
-                    .set_accels_for_action("app.next_chapter", &["AudioNext"]);
-                self.app
-                    .set_accels_for_action("app.previous_chapter", &["AudioPrev"]);
-                self.app.set_accels_for_action("app.close_info_bar", &[]);
-            }
-            UIFocusContext::InfoBar => {
-                self.app
-                    .set_accels_for_action("app.play_pause", &["AudioPlay"]);
-                self.app.set_accels_for_action("app.next_chapter", &[]);
-                self.app.set_accels_for_action("app.previous_chapter", &[]);
-                self.app
-                    .set_accels_for_action("app.close_info_bar", &["Escape"]);
-            }
-        }
-
-        PerspectiveDispatcher::bind_accels_for(ctx, &self.app);
-        VideoDispatcher::bind_accels_for(ctx, &self.app);
-        InfoDispatcher::bind_accels_for(ctx, &self.app);
-        StreamsDispatcher::bind_accels_for(ctx, &self.app);
-    }
-
-    fn update_focus(&self) {
-        let main_ctrl = self.main_ctrl();
-        match self.focus {
-            UIFocusContext::PlaybackPage => main_ctrl.info_ctrl.grab_focus(),
-            UIFocusContext::StreamsPage => main_ctrl.streams_ctrl.grab_focus(),
-            _ => (),
-        }
-    }
-
-    fn switch_to(&mut self, ctx: UIFocusContext) {
-        self.focus = ctx;
-        self.bind_accels_for(ctx);
-        self.update_focus();
-    }
-
-    fn save_context(&mut self) {
-        self.saved_context = Some(self.focus);
-    }
-
-    fn restore_context(&mut self) {
-        if let Some(focus_ctx) = self.saved_context.take() {
-            self.switch_to(focus_ctx);
-        }
-    }
+    (sender, receiver)
 }
