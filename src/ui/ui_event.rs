@@ -1,7 +1,5 @@
 use futures::channel::mpsc as async_mpsc;
 
-use gstreamer as gst;
-
 use std::{borrow::Cow, cell::RefCell, path::PathBuf};
 
 use crate::media::Timestamp;
@@ -15,6 +13,7 @@ pub enum UIFocusContext {
 
 #[derive(Debug)]
 pub enum UIEvent {
+    About,
     CancelSelectMedia,
     ChapterClicked(gtk::TreePath),
     Eos,
@@ -37,6 +36,7 @@ pub enum UIEvent {
     ShowInfo(Cow<'static, str>),
     StepBack,
     StepForward,
+    StreamClicked(gst::StreamType),
     SwitchTo(UIFocusContext),
     TemporarilySwitchTo(UIFocusContext),
     ToggleChapterList(bool),
@@ -51,6 +51,10 @@ pub struct UIEventSender(RefCell<async_mpsc::UnboundedSender<UIEvent>>);
 impl UIEventSender {
     fn send(&self, event: UIEvent) {
         let _ = self.0.borrow_mut().unbounded_send(event);
+    }
+
+    pub fn about(&self) {
+        self.send(UIEvent::About);
     }
 
     pub fn cancel_select_media(&self) {
@@ -135,6 +139,10 @@ impl UIEventSender {
 
     pub fn step_forward(&self) {
         self.send(UIEvent::StepForward);
+    }
+
+    pub fn stream_clicked(&self, type_: gst::StreamType) {
+        self.send(UIEvent::StreamClicked(type_));
     }
 
     pub fn switch_to(&self, ctx: UIFocusContext) {

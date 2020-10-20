@@ -1,5 +1,3 @@
-use gstreamer as gst;
-
 use std::io::Read;
 
 use super::MediaInfo;

@@ -3,7 +3,6 @@ use futures::prelude::*;
 
 use gettextrs::{gettext, ngettext};
 
-use gstreamer as gst;
 use gtk::prelude::*;
 
 use log::error;
@@ -68,6 +67,7 @@ impl MainController {
 
         let window: gtk::ApplicationWindow = builder.get_object("application-window").unwrap();
         window.set_application(Some(app));
+        window.set_title(&gettext("media-toc player"));
 
         let (ui_event, ui_event_receiver) = ui_event::new_pair();
 

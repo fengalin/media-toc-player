@@ -5,7 +5,6 @@ use gettextrs::gettext;
 
 use gst::prelude::*;
 use gst::ClockTime;
-use gstreamer as gst;
 
 use log::{info, warn};
 

@@ -1,6 +1,5 @@
 use gettextrs::gettext;
 use gst::Tag;
-use gstreamer as gst;
 use lazy_static::lazy_static;
 
 use std::{
@@ -77,16 +76,16 @@ lazy_static! {
     };
 }
 
-macro_rules! get_tag_for_display (
+macro_rules! tag_for_display (
     ($info:expr, $primary_tag:ty, $secondary_tag:ty) => {
         #[allow(clippy::redundant_closure)]
         $info
-            .get_tag_list::<$primary_tag>()
-            .or_else(|| $info.get_tag_list::<$secondary_tag>())
+            .tag_list::<$primary_tag>()
+            .or_else(|| $info.tag_list::<$secondary_tag>())
             .or_else(|| {
                 $info.streams
-                    .get_tag_list::<$primary_tag>()
-                    .or_else(|| $info.streams.get_tag_list::<$secondary_tag>())
+                    .tag_list::<$primary_tag>()
+                    .or_else(|| $info.streams.tag_list::<$secondary_tag>())
             })
             .and_then(|tag_list| {
                 tag_list
@@ -148,11 +147,69 @@ impl Stream {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
+pub struct StreamCollection {
+    type_: gst::StreamType,
+    collection: HashMap<Arc<str>, Stream>,
+}
+
+impl StreamCollection {
+    fn new(type_: gst::StreamType) -> Self {
+        StreamCollection {
+            type_,
+            collection: HashMap::new(),
+        }
+    }
+
+    fn add_stream(&mut self, stream: Stream) {
+        self.collection.insert(Arc::clone(&stream.id), stream);
+    }
+
+    pub fn get<S: AsRef<str>>(&self, id: S) -> Option<&Stream> {
+        self.collection.get(id.as_ref())
+    }
+
+    pub fn contains<S: AsRef<str>>(&self, id: S) -> bool {
+        self.collection.contains_key(id.as_ref())
+    }
+
+    pub fn sorted(&self) -> SortedStreamCollectionIter<'_> {
+        SortedStreamCollectionIter::new(self)
+    }
+}
+
+pub struct SortedStreamCollectionIter<'sc> {
+    collection: &'sc StreamCollection,
+    sorted_iter: std::vec::IntoIter<Arc<str>>,
+}
+
+impl<'sc> SortedStreamCollectionIter<'sc> {
+    fn new(collection: &'sc StreamCollection) -> Self {
+        let mut sorted_ids: Vec<Arc<str>> = collection.collection.keys().map(Arc::clone).collect();
+        sorted_ids.sort();
+
+        SortedStreamCollectionIter {
+            collection,
+            sorted_iter: sorted_ids.into_iter(),
+        }
+    }
+}
+
+impl<'sc> Iterator for SortedStreamCollectionIter<'sc> {
+    type Item = &'sc Stream;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.sorted_iter
+            .next()
+            .and_then(|id| self.collection.get(&id))
+    }
+}
+
+#[derive(Debug)]
 pub struct Streams {
-    pub audio: HashMap<Arc<str>, Stream>,
-    pub video: HashMap<Arc<str>, Stream>,
-    pub text: HashMap<Arc<str>, Stream>,
+    pub audio: StreamCollection,
+    pub video: StreamCollection,
+    pub text: StreamCollection,
 
     cur_audio_id: Option<Arc<str>>,
     pub audio_changed: bool,
@@ -162,23 +219,49 @@ pub struct Streams {
     pub text_changed: bool,
 }
 
+impl Default for Streams {
+    fn default() -> Self {
+        Streams {
+            audio: StreamCollection::new(gst::StreamType::AUDIO),
+            video: StreamCollection::new(gst::StreamType::VIDEO),
+            text: StreamCollection::new(gst::StreamType::TEXT),
+
+            cur_audio_id: None,
+            audio_changed: false,
+            cur_video_id: None,
+            video_changed: false,
+            cur_text_id: None,
+            text_changed: false,
+        }
+    }
+}
+
 impl Streams {
     pub fn add_stream(&mut self, gst_stream: &gst::Stream) {
         let stream = Stream::new(gst_stream);
         match stream.type_ {
             gst::StreamType::AUDIO => {
                 self.cur_audio_id.get_or_insert(Arc::clone(&stream.id));
-                self.audio.insert(stream.id.clone(), stream);
+                self.audio.add_stream(stream);
             }
             gst::StreamType::VIDEO => {
                 self.cur_video_id.get_or_insert(Arc::clone(&stream.id));
-                self.video.insert(stream.id.clone(), stream);
+                self.video.add_stream(stream);
             }
             gst::StreamType::TEXT => {
                 self.cur_text_id.get_or_insert(Arc::clone(&stream.id));
-                self.text.insert(stream.id.clone(), stream);
+                self.text.add_stream(stream);
             }
-            _ => panic!("MediaInfo::add_stream can't handle {:?}", stream.type_),
+            other => unimplemented!("{:?}", other),
+        }
+    }
+
+    pub fn collection(&self, type_: gst::StreamType) -> &StreamCollection {
+        match type_ {
+            gst::StreamType::AUDIO => &self.audio,
+            gst::StreamType::VIDEO => &self.video,
+            gst::StreamType::TEXT => &self.text,
+            other => unimplemented!("{:?}", other),
         }
     }
 
@@ -189,31 +272,19 @@ impl Streams {
     pub fn selected_audio(&self) -> Option<&Stream> {
         self.cur_audio_id
             .as_ref()
-            .map(|stream_id| &self.audio[stream_id])
+            .and_then(|stream_id| self.audio.get(stream_id))
     }
 
     pub fn selected_video(&self) -> Option<&Stream> {
         self.cur_video_id
             .as_ref()
-            .map(|stream_id| &self.video[stream_id])
+            .and_then(|stream_id| self.video.get(stream_id))
     }
 
     pub fn selected_text(&self) -> Option<&Stream> {
         self.cur_text_id
             .as_ref()
-            .map(|stream_id| &self.text[stream_id])
-    }
-
-    pub fn get_audio<S: AsRef<str>>(&self, id: S) -> Option<&Stream> {
-        self.audio.get(id.as_ref())
-    }
-
-    pub fn get_video<S: AsRef<str>>(&self, id: S) -> Option<&Stream> {
-        self.video.get(id.as_ref())
-    }
-
-    pub fn get_text<S: AsRef<str>>(&self, id: S) -> Option<&Stream> {
-        self.text.get(id.as_ref())
+            .and_then(|stream_id| self.text.get(stream_id))
     }
 
     pub fn select_streams(&mut self, ids: &[Arc<str>]) -> Result<(), SelectStreamError> {
@@ -222,19 +293,19 @@ impl Streams {
         let mut is_video_selected = false;
 
         for id in ids {
-            if self.audio.contains_key(id) {
+            if self.audio.contains(id) {
                 is_audio_selected = true;
                 self.audio_changed = self
                     .selected_audio()
                     .map_or(true, |prev_stream| *id != prev_stream.id);
                 self.cur_audio_id = Some(Arc::clone(id));
-            } else if self.text.contains_key(id) {
+            } else if self.text.contains(id) {
                 is_text_selected = true;
                 self.text_changed = self
                     .selected_text()
                     .map_or(true, |prev_stream| *id != prev_stream.id);
                 self.cur_text_id = Some(Arc::clone(id));
-            } else if self.video.contains_key(id) {
+            } else if self.video.contains(id) {
                 is_video_selected = true;
                 self.video_changed = self
                     .selected_video()
@@ -258,17 +329,17 @@ impl Streams {
         Ok(())
     }
 
-    pub fn get_audio_codec(&self) -> Option<&str> {
+    pub fn audio_codec(&self) -> Option<&str> {
         self.selected_audio()
             .map(|stream| stream.codec_printable.as_str())
     }
 
-    pub fn get_video_codec(&self) -> Option<&str> {
+    pub fn video_codec(&self) -> Option<&str> {
         self.selected_video()
             .map(|stream| stream.codec_printable.as_str())
     }
 
-    fn get_tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
+    fn tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
         self.selected_audio()
             .and_then(|selected_audio| {
                 if selected_audio.tags.get_size::<T>() > 0 {
@@ -324,7 +395,7 @@ impl MediaInfo {
         self.tags = self.tags.merge(tags, gst::TagMergeMode::Keep);
     }
 
-    fn get_tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
+    fn tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
         if self.tags.get_size::<T>() > 0 {
             Some(self.tags.clone())
         } else {
@@ -332,23 +403,23 @@ impl MediaInfo {
         }
     }
 
-    pub fn get_media_artist(&self) -> Option<String> {
-        get_tag_for_display!(self, gst::tags::Artist, gst::tags::AlbumArtist)
+    pub fn media_artist(&self) -> Option<String> {
+        tag_for_display!(self, gst::tags::Artist, gst::tags::AlbumArtist)
     }
 
-    pub fn get_media_title(&self) -> Option<String> {
-        get_tag_for_display!(self, gst::tags::Title, gst::tags::Album)
+    pub fn media_title(&self) -> Option<String> {
+        tag_for_display!(self, gst::tags::Title, gst::tags::Album)
     }
 
-    pub fn get_media_image(&self) -> Option<gst::Sample> {
-        get_tag_for_display!(self, gst::tags::Image, gst::tags::PreviewImage)
+    pub fn media_image(&self) -> Option<gst::Sample> {
+        tag_for_display!(self, gst::tags::Image, gst::tags::PreviewImage)
     }
 
-    pub fn get_container(&self) -> Option<&str> {
+    pub fn container(&self) -> Option<&str> {
         // in case of an mp3 audio file, container comes as `ID3 label`
         // => bypass it
-        if let Some(audio_codec) = self.streams.get_audio_codec() {
-            if self.streams.get_video_codec().is_none()
+        if let Some(audio_codec) = self.streams.audio_codec() {
+            if self.streams.video_codec().is_none()
                 && audio_codec.to_lowercase().find("mp3").is_some()
             {
                 return None;

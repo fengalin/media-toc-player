@@ -10,7 +10,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: media-toc-player\n"
 "Report-Msgid-Bugs-To: François Laignel <fengalin@free.fr>\n"
-"POT-Creation-Date: 2020-10-17 11:41+0200\n"
+"POT-Creation-Date: 2020-10-20 15:38+0200\n"
 "PO-Revision-Date: 2020-10-17 11:49+0200\n"
 "Last-Translator: François Laignel <fengalin@free.fr>\n"
 "Language-Team: français <>\n"
@@ -96,7 +96,7 @@ msgstr "Visualización"
 msgid "Streams"
 msgstr "Flujos"
 
-#: src/application/command_line.rs:12 src/ui/main_controller.rs:156
+#: src/application/command_line.rs:12 src/ui/main_controller.rs:160
 msgid "A media player with a table of contents"
 msgstr "Un reproductor multimedia con una tabla de contenidos"
 
@@ -140,11 +140,11 @@ msgstr "No se pudo crear el archivo de configuración: {}"
 msgid "Failed to initialize GTK"
 msgstr "No se pudo inicializar GTK"
 
-#: src/media/playback_pipeline.rs:190
+#: src/media/playback_pipeline.rs:189
 msgid "Opening {}..."
 msgstr "Abriendo {}..."
 
-#: src/media/playback_pipeline.rs:212
+#: src/media/playback_pipeline.rs:211
 msgid ""
 "Missing `decodebin3`\n"
 "check your gst-plugins-base install"
@@ -152,64 +152,64 @@ msgstr ""
 "Falta `decodebin3`\n"
 "Verifique la instalación de gst-plugins-base"
 
-#: src/media/playback_pipeline.rs:227
+#: src/media/playback_pipeline.rs:226
 msgid "Couldn't find GStreamer GTK video sink."
 msgstr "No se pudo encontrar el elemento \"GTK video sink\""
 
-#: src/media/playback_pipeline.rs:228
+#: src/media/playback_pipeline.rs:227
 msgid "Video playback will be disabled."
 msgstr "La reproducción de vídeo estará deshabilitada."
 
-#: src/media/playback_pipeline.rs:229
+#: src/media/playback_pipeline.rs:228
 msgid "Please install {} or {}, depending on your distribution."
 msgstr "Por favor installe {} o {} en función de su distribución."
 
-#: src/media/playback_pipeline.rs:373
+#: src/media/playback_pipeline.rs:372
 msgid "Missing plugin: {}"
 msgstr "No se encontró el plugin: {}"
 
-#: src/metadata/media_info.rs:36
+#: src/metadata/media_info.rs:35
 msgid "untitled"
 msgstr "sin título"
 
-#: src/metadata/mkvmerge_text_format.rs:127
+#: src/metadata/mkvmerge_text_format.rs:126
 msgid "unexpected error reading mkvmerge text file."
 msgstr "error inesperado al leer el fichero de texto mkvmerge"
 
-#: src/metadata/mkvmerge_text_format.rs:145
-#: src/metadata/mkvmerge_text_format.rs:162
+#: src/metadata/mkvmerge_text_format.rs:144
+#: src/metadata/mkvmerge_text_format.rs:161
 msgid "unexpected sequence starting with: {}"
 msgstr "secuencia inesperada empezando con: {}"
 
-#: src/metadata/mkvmerge_text_format.rs:158
+#: src/metadata/mkvmerge_text_format.rs:157
 msgid "expecting a number, found: {}"
 msgstr "se esperaba un número en lugar de {}"
 
-#: src/metadata/mkvmerge_text_format.rs:160
+#: src/metadata/mkvmerge_text_format.rs:159
 msgid "chapter numbers don't match for: {}"
 msgstr "los números de capítulo no corresponden para: {}"
 
-#: src/metadata/mkvmerge_text_format.rs:200
+#: src/metadata/mkvmerge_text_format.rs:199
 msgid "couldn't update last start position"
 msgstr "no se puede actualizar la última posición de inicio"
 
-#: src/ui/chapter_tree_manager.rs:370
+#: src/ui/chapter_tree_manager.rs:369
 msgid "Title"
 msgstr "Título"
 
-#: src/ui/chapter_tree_manager.rs:376
+#: src/ui/chapter_tree_manager.rs:375
 msgid "Start"
 msgstr "Inicio"
 
-#: src/ui/chapter_tree_manager.rs:380
+#: src/ui/chapter_tree_manager.rs:379
 msgid "End"
 msgstr "Fín"
 
-#: src/ui/info_controller.rs:102
+#: src/ui/info_controller.rs:103
 msgid "No toc in file \"{}\""
 msgstr "Ninguna tabla de contenido en el archivo \"{}\""
 
-#: src/ui/info_controller.rs:113
+#: src/ui/info_controller.rs:114
 msgid ""
 "Error opening toc file \"{}\":\n"
 "{}"
@@ -217,9 +217,13 @@ msgstr ""
 "Error al abrir el fichero \"{}\":\n"
 "{}"
 
-#: src/ui/info_controller.rs:127
+#: src/ui/info_controller.rs:128
 msgid "Failed to open toc file."
 msgstr "No se pudo abrir el archivo de la tabla de contenidos."
+
+#: src/ui/main_controller.rs:70
+msgid "media-toc player"
+msgstr "reproductor media-toc"
 
 #: src/ui/main_controller.rs:75
 msgid "Open a media file"
@@ -233,27 +237,27 @@ msgstr "Abrir"
 msgid "Cancel"
 msgstr "Anular"
 
-#: src/ui/main_controller.rs:158
+#: src/ui/main_controller.rs:162
 msgid "translator-credits"
 msgstr "Xther"
 
-#: src/ui/main_controller.rs:162
+#: src/ui/main_controller.rs:166
 msgid "Learn more about media-toc-player"
 msgstr "Más información acerca de media-toc-player"
 
-#: src/ui/main_controller.rs:372
+#: src/ui/main_controller.rs:375
 msgid "Some streams are not usable. {}"
 msgstr "No se pueden utilizar algunos flujos. {}"
 
-#: src/ui/main_controller.rs:394
+#: src/ui/main_controller.rs:396
 msgid "An unrecoverable error occured. {}"
 msgstr "Se encontró un error irrecuperable. {}"
 
-#: src/ui/main_controller.rs:421
+#: src/ui/main_controller.rs:423
 msgid "Failed to switch the media to Paused"
 msgstr "No se pudo pasar en modo pausa."
 
-#: src/ui/main_controller.rs:428
+#: src/ui/main_controller.rs:430
 msgid ""
 "Video rendering hardware acceleration seems broken and has been disabled.\n"
 "Please restart the application."
@@ -262,11 +266,11 @@ msgstr ""
 "que no parece funcionar correctamente.\n"
 "Reinicie la aplicación por favor."
 
-#: src/ui/main_controller.rs:434
+#: src/ui/main_controller.rs:436
 msgid "Error opening file. {}"
 msgstr "Error al abrir el archivo. {}"
 
-#: src/ui/main_controller.rs:441
+#: src/ui/main_controller.rs:443
 msgid ""
 "Missing plugin:\n"
 "{}"
@@ -280,65 +284,66 @@ msgstr[1] ""
 "No se encontraron los plugins:\n"
 "{}"
 
-#: src/ui/main_dispatcher.rs:38
+#: src/ui/main_dispatcher.rs:77
 msgid "About"
 msgstr "Acerca de"
 
-#: src/ui/main_dispatcher.rs:49
+#: src/ui/main_dispatcher.rs:88
 msgid "Quit"
 msgstr "Salir"
 
-#: src/ui/main_dispatcher.rs:93
+#: src/ui/main_dispatcher.rs:132
 msgid "Open media file"
 msgstr "Abrir el archivo multimedia"
 
-#: src/ui/main_dispatcher.rs:115
+#: src/ui/main_dispatcher.rs:154
 msgid "Failed to initialize GStreamer, the application can't be used."
 msgstr ""
 "No se pudo inicializar GStreamer, la aplicación no puede ser utilizada."
 
-#: src/ui/streams_controller.rs:206
+#: src/ui/streams_controller.rs:108
 msgid "unknown"
 msgstr "desconocido"
 
-#: src/ui/streams_controller.rs:252
+#: src/ui/streams_controller.rs:201 src/ui/streams_controller.rs:259
+#: src/ui/streams_controller.rs:309
 msgid "Stream id"
 msgstr "Id. del flujo"
 
-#: src/ui/streams_controller.rs:253
+#: src/ui/streams_controller.rs:208 src/ui/streams_controller.rs:266
+#: src/ui/streams_controller.rs:316
 msgid "Language"
 msgstr "Idioma"
 
-#: src/ui/streams_controller.rs:254
+#: src/ui/streams_controller.rs:213 src/ui/streams_controller.rs:271
+#: src/ui/streams_controller.rs:321
 msgid "Codec"
 msgstr "Códec"
 
-#: src/ui/streams_controller.rs:255
-msgid "Comment"
-msgstr "Comentario"
-
-#: src/ui/streams_controller.rs:281
+#: src/ui/streams_controller.rs:216
 msgid "Width"
 msgstr "Ancho"
 
-#: src/ui/streams_controller.rs:288
+#: src/ui/streams_controller.rs:223
 msgid "Height"
 msgstr "Alto"
 
-#: src/ui/streams_controller.rs:326
+#: src/ui/streams_controller.rs:228 src/ui/streams_controller.rs:286
+#: src/ui/streams_controller.rs:329
+msgid "Comment"
+msgstr "Comentario"
+
+#: src/ui/streams_controller.rs:274
 msgid "Rate"
 msgstr "Velocidad"
 
-#: src/ui/streams_controller.rs:333
+#: src/ui/streams_controller.rs:281
 msgid "Channels"
 msgstr "Canales"
 
-#: src/ui/streams_controller.rs:365
+#: src/ui/streams_controller.rs:324
 msgid "Format"
 msgstr "Formato"
 
 #~ msgid "Could not set media in Playing mode"
 #~ msgstr "No se pudo pasar en modo reproducción."
-
-#~ msgid "media-toc player"
-#~ msgstr "reproductor media-toc"

@@ -22,7 +22,7 @@ gdk = { git = "https://github.com/gtk-rs/gdk" }
 gettext-rs = { version = "0.4", features = ["gettext-system"] }
 gio = { git = "https://github.com/gtk-rs/gio" }
 glib = { git = "https://github.com/gtk-rs/glib" }
-gstreamer = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
+gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["v1_10"] }
 gtk = { git = "https://github.com/gtk-rs/gtk", features = ["v3_20"] }
 image = "0.23"
 lazy_static = "1"

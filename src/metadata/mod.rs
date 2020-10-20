@@ -1,5 +1,3 @@
-use gstreamer as gst;
-
 mod duration;
 pub use duration::Duration;
 

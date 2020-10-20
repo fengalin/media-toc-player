@@ -7,7 +7,6 @@ use gettextrs::gettext;
 
 use gio::prelude::*;
 use glib::clone;
-use gstreamer as gst;
 use gtk::prelude::*;
 
 use log::debug;
@@ -69,9 +68,11 @@ impl MainDispatcher {
         // About
         let about = gio::SimpleAction::new("about", None);
         app.add_action(&about);
-        about.connect_activate(clone!(@weak main_ctrl_rc => move |_, _| {
-            main_ctrl_rc.borrow().about();
-        }));
+        about.connect_activate(
+            clone!(@strong main_ctrl.ui_event as ui_event => move |_, _| {
+                ui_event.about();
+            }),
+        );
         app.set_accels_for_action("app.about", &["<Ctrl>A"]);
         app_section.append(Some(&gettext("About")), Some("app.about"));
 
@@ -94,7 +95,7 @@ impl MainDispatcher {
         ));
 
         let ui_event = main_ctrl.ui_event().clone();
-        if gstreamer::init().is_ok() {
+        if gst::init().is_ok() {
             PerspectiveDispatcher::setup(
                 &mut main_ctrl.perspective_ctrl,
                 main_ctrl_rc,
@@ -161,6 +162,7 @@ impl MainDispatcher {
         use UIEvent::*;
 
         match event {
+            About => self.main_ctrl.borrow().about(),
             CancelSelectMedia => self.main_ctrl.borrow_mut().cancel_select_media(),
             ChapterClicked(tree_path) => {
                 let mut main_ctrl = self.main_ctrl.borrow_mut();
@@ -229,6 +231,15 @@ impl MainDispatcher {
                 if let Some(current_ts) = main_ctrl.current_ts() {
                     let seek_ts = current_ts + info_controller::SEEK_STEP;
                     let _ = main_ctrl.seek(seek_ts, gst::SeekFlags::ACCURATE).await;
+                }
+            }
+            StreamClicked(type_) => {
+                let mut main_ctrl = self.main_ctrl.borrow_mut();
+                if let super::StreamClickedStatus::Changed =
+                    main_ctrl.streams_ctrl.stream_clicked(type_)
+                {
+                    let streams = main_ctrl.streams_ctrl.selected_streams();
+                    main_ctrl.select_streams(&streams).await;
                 }
             }
             SwitchTo(focus_ctx) => self.switch_to(focus_ctx),

@@ -34,7 +34,7 @@ impl InfoBarController {
             ui_event.restore_context();
         }));
 
-        if gstreamer::init().is_ok() {
+        if gst::init().is_ok() {
             close_info_bar_action
                 .connect_activate(clone!(@strong info_bar => move |_, _| info_bar.emit_close()));
         } else {

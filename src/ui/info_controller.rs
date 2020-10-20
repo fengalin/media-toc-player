@@ -1,5 +1,4 @@
 use gettextrs::gettext;
-use gstreamer as gst;
 use gtk::prelude::*;
 use log::{info, warn};
 
@@ -79,7 +78,7 @@ impl UIController for InfoController {
                 .set_label(&Timestamp4Humans::from_duration(pipeline.info.duration).to_string());
 
             // FIXME no longer displayed
-            self.thumbnail = pipeline.info.get_media_image().and_then(|image| {
+            self.thumbnail = pipeline.info.media_image().and_then(|image| {
                 image.get_buffer().and_then(|image_buffer| {
                     image_buffer.map_readable().ok().and_then(|image_map| {
                         Image::from_unknown(image_map.as_slice())
@@ -90,7 +89,7 @@ impl UIController for InfoController {
             });
 
             self.container_lbl
-                .set_label(pipeline.info.get_container().unwrap_or(EMPTY_REPLACEMENT));
+                .set_label(pipeline.info.container().unwrap_or(EMPTY_REPLACEMENT));
 
             let extern_toc = toc_candidates
                 .next()
@@ -180,19 +179,19 @@ impl UIController for InfoController {
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
-        match info.get_media_artist() {
+        match info.media_artist() {
             Some(artist) => self.artist_lbl.set_label(&artist),
             None => self.artist_lbl.set_label(EMPTY_REPLACEMENT),
         }
-        match info.get_media_title() {
+        match info.media_title() {
             Some(title) => self.title_lbl.set_label(&title),
             None => self.title_lbl.set_label(EMPTY_REPLACEMENT),
         }
 
         self.audio_codec_lbl
-            .set_label(info.streams.get_audio_codec().unwrap_or(EMPTY_REPLACEMENT));
+            .set_label(info.streams.audio_codec().unwrap_or(EMPTY_REPLACEMENT));
         self.video_codec_lbl
-            .set_label(info.streams.get_video_codec().unwrap_or(EMPTY_REPLACEMENT));
+            .set_label(info.streams.video_codec().unwrap_or(EMPTY_REPLACEMENT));
     }
 
     fn grab_focus(&self) {

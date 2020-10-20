@@ -1,11 +1,10 @@
 use gettextrs::gettext;
-use gstreamer as gst;
 
 use gtk::prelude::*;
 
 use std::sync::Arc;
 
-use crate::{media::PlaybackPipeline, metadata::Stream};
+use crate::{media::PlaybackPipeline, metadata};
 
 use super::{spawn, UIController};
 
@@ -13,192 +12,95 @@ const ALIGN_LEFT: f32 = 0f32;
 const ALIGN_CENTER: f32 = 0.5f32;
 const ALIGN_RIGHT: f32 = 1f32;
 
-pub(super) const STREAM_ID_COL: u32 = 0;
+const STREAM_ID_COL: u32 = 0;
 const STREAM_ID_DISPLAY_COL: u32 = 1;
+
 const LANGUAGE_COL: u32 = 2;
 const CODEC_COL: u32 = 3;
 const COMMENT_COL: u32 = 4;
 
-const VIDEO_WIDTH_COL: u32 = 5;
-const VIDEO_HEIGHT_COL: u32 = 6;
-
-const AUDIO_RATE_COL: u32 = 5;
-const AUDIO_CHANNELS_COL: u32 = 6;
-
-const TEXT_FORMAT_COL: u32 = 5;
-
-pub struct StreamsController {
-    pub(super) page: gtk::Grid,
-
-    pub(super) video_treeview: gtk::TreeView,
-    pub(super) video_store: gtk::ListStore,
-    pub(super) video_selected: Option<Arc<str>>,
-
-    pub(super) audio_treeview: gtk::TreeView,
-    pub(super) audio_store: gtk::ListStore,
-    pub(super) audio_selected: Option<Arc<str>>,
-
-    pub(super) text_treeview: gtk::TreeView,
-    pub(super) text_store: gtk::ListStore,
-    pub(super) text_selected: Option<Arc<str>>,
+pub enum StreamClickedStatus {
+    Changed,
+    Unchanged,
 }
 
-impl UIController for StreamsController {
-    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
-        {
-            // Video streams
-            let mut sorted_ids = pipeline
-                .info
-                .streams
-                .video
-                .keys()
-                .map(|key| Arc::clone(key))
-                .collect::<Vec<Arc<str>>>();
-            sorted_ids.sort();
-            for stream_id in sorted_ids {
-                let stream = pipeline.info.streams.get_video(stream_id).unwrap();
-                let iter = self.add_stream(&self.video_store, stream);
-                let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Ok(Some(width)) = caps_structure.get::<i32>("width") {
-                    self.video_store
-                        .set_value(&iter, VIDEO_WIDTH_COL, &glib::Value::from(&width));
-                }
-                if let Ok(Some(height)) = caps_structure.get::<i32>("height") {
-                    self.video_store.set_value(
-                        &iter,
-                        VIDEO_HEIGHT_COL,
-                        &glib::Value::from(&height),
-                    );
-                }
-            }
+pub(super) trait UIStreamImpl {
+    const TYPE: gst::StreamType;
 
-            // Audio streams
-            let mut sorted_ids = pipeline
-                .info
-                .streams
-                .audio
-                .keys()
-                .map(|key| Arc::clone(key))
-                .collect::<Vec<Arc<str>>>();
-            sorted_ids.sort();
-            for stream_id in sorted_ids {
-                let stream = pipeline.info.streams.get_audio(stream_id).unwrap();
-                let iter = self.add_stream(&self.audio_store, stream);
-                let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Ok(Some(rate)) = caps_structure.get::<i32>("rate") {
-                    self.audio_store
-                        .set_value(&iter, AUDIO_RATE_COL, &glib::Value::from(&rate));
-                }
-                if let Ok(Some(channels)) = caps_structure.get::<i32>("channels") {
-                    self.audio_store.set_value(
-                        &iter,
-                        AUDIO_CHANNELS_COL,
-                        &glib::Value::from(&channels),
-                    );
-                }
-            }
+    fn new_media(store: &gtk::ListStore, iter: &gtk::TreeIter, caps_struct: &gst::StructureRef);
+    fn init_treeview(treeview: &gtk::TreeView, store: &gtk::ListStore);
 
-            // Text streams
-            let mut sorted_ids = pipeline
-                .info
-                .streams
-                .text
-                .keys()
-                .map(|key| Arc::clone(key))
-                .collect::<Vec<Arc<str>>>();
-            sorted_ids.sort();
-            for stream_id in sorted_ids {
-                let stream = pipeline.info.streams.get_text(stream_id).unwrap();
-                let iter = self.add_stream(&self.text_store, stream);
-                let caps_structure = stream.caps.get_structure(0).unwrap();
-                if let Ok(Some(format)) = caps_structure.get::<&str>("format") {
-                    self.text_store
-                        .set_value(&iter, TEXT_FORMAT_COL, &glib::Value::from(&format));
-                }
-            }
+    fn add_text_column(
+        treeview: &gtk::TreeView,
+        title: &str,
+        alignment: f32,
+        col_id: u32,
+        width: Option<i32>,
+    ) {
+        let col = gtk::TreeViewColumn::new();
+        col.set_title(title);
+
+        let renderer = gtk::CellRendererText::new();
+        renderer.set_alignment(alignment, ALIGN_CENTER);
+        col.pack_start(&renderer, true);
+        col.add_attribute(&renderer, "text", col_id as i32);
+
+        if let Some(width) = width {
+            renderer.set_fixed_size(width, -1);
         }
 
-        self.video_selected = self.video_store.get_iter_first().map(|ref iter| {
-            self.video_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.video_store, iter)
-        });
+        treeview.append_column(&col);
+    }
+}
 
-        self.audio_selected = self.audio_store.get_iter_first().map(|ref iter| {
-            self.audio_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.audio_store, iter)
-        });
+pub(super) struct UIStream<Impl: UIStreamImpl> {
+    pub(super) treeview: gtk::TreeView,
+    store: gtk::ListStore,
+    selected: Option<Arc<str>>,
+    phantom: std::marker::PhantomData<Impl>,
+}
 
-        self.text_selected = self.text_store.get_iter_first().map(|ref iter| {
-            self.text_treeview.get_selection().select_iter(iter);
-            self.get_stream_at(&self.text_store, iter)
-        });
+impl<Impl: UIStreamImpl> UIStream<Impl> {
+    fn new(treeview: gtk::TreeView, store: gtk::ListStore) -> Self {
+        UIStream {
+            treeview,
+            store,
+            selected: None,
+            phantom: std::marker::PhantomData,
+        }
+    }
+
+    fn init_treeview(&self) {
+        Impl::init_treeview(&self.treeview, &self.store);
     }
 
     fn cleanup(&mut self) {
-        self.video_selected = None;
-        self.video_treeview
+        self.selected = None;
+        self.treeview
             .set_cursor(&gtk::TreePath::new(), None::<&gtk::TreeViewColumn>, false);
-        self.video_store.clear();
-        self.audio_selected = None;
-        self.audio_treeview
-            .set_cursor(&gtk::TreePath::new(), None::<&gtk::TreeViewColumn>, false);
-        self.audio_store.clear();
-        self.text_selected = None;
-        self.text_treeview
-            .set_cursor(&gtk::TreePath::new(), None::<&gtk::TreeViewColumn>, false);
-        self.text_store.clear();
+        self.store.clear();
     }
 
-    fn grab_focus(&self) {
-        // grab focus asynchronoulsy because it triggers the `cursor_changed` signal
-        // which needs to check if the stream has changed
-        let audio_treeview = self.audio_treeview.clone();
-        spawn(async move {
-            audio_treeview.grab_focus();
+    fn new_media(&mut self, streams: &metadata::Streams) {
+        let sorted_collection = streams.collection(Impl::TYPE).sorted();
+        for stream in sorted_collection {
+            let iter = self.add_stream(stream);
+            let caps_structure = stream.caps.get_structure(0).unwrap();
+            Impl::new_media(&self.store, &iter, &caps_structure);
+        }
+
+        self.selected = self.store.get_iter_first().map(|ref iter| {
+            self.treeview.get_selection().select_iter(iter);
+            self.store
+                .get_value(iter, STREAM_ID_COL as i32)
+                .get::<String>()
+                .unwrap()
+                .unwrap()
+                .into()
         });
     }
-}
 
-impl StreamsController {
-    pub fn new(builder: &gtk::Builder) -> Self {
-        let mut ctrl = StreamsController {
-            page: builder.get_object("streams-grid").unwrap(),
-
-            video_treeview: builder.get_object("video_streams-treeview").unwrap(),
-            video_store: builder.get_object("video_streams-liststore").unwrap(),
-            video_selected: None,
-
-            audio_treeview: builder.get_object("audio_streams-treeview").unwrap(),
-            audio_store: builder.get_object("audio_streams-liststore").unwrap(),
-            audio_selected: None,
-
-            text_treeview: builder.get_object("text_streams-treeview").unwrap(),
-            text_store: builder.get_object("text_streams-liststore").unwrap(),
-            text_selected: None,
-        };
-
-        ctrl.cleanup();
-        ctrl.init_treeviews();
-
-        ctrl
-    }
-
-    pub fn get_selected_streams(&self) -> Vec<Arc<str>> {
-        let mut streams: Vec<Arc<str>> = Vec::new();
-        if let Some(stream) = self.video_selected.as_ref() {
-            streams.push(Arc::clone(stream));
-        }
-        if let Some(stream) = self.audio_selected.as_ref() {
-            streams.push(Arc::clone(stream));
-        }
-        if let Some(stream) = self.text_selected.as_ref() {
-            streams.push(Arc::clone(stream));
-        }
-
-        streams
-    }
-
-    fn add_stream(&self, store: &gtk::ListStore, stream: &Stream) -> gtk::TreeIter {
+    fn add_stream(&self, stream: &metadata::Stream) -> gtk::TreeIter {
         let id_parts: Vec<&str> = stream.id.split('/').collect();
         let stream_id_display = if id_parts.len() == 2 {
             id_parts[1].to_owned()
@@ -206,7 +108,7 @@ impl StreamsController {
             gettext("unknown")
         };
 
-        let iter = store.insert_with_values(
+        let iter = self.store.insert_with_values(
             None,
             &[STREAM_ID_COL, STREAM_ID_DISPLAY_COL],
             &[&stream.id.as_ref(), &stream_id_display],
@@ -218,17 +120,19 @@ impl StreamsController {
             .or_else(|| stream.tags.get_index::<gst::tags::LanguageCode>(0))
             .and_then(|value| value.get())
             .unwrap_or("-");
-        store.set_value(&iter, LANGUAGE_COL, &glib::Value::from(lang));
+        self.store
+            .set_value(&iter, LANGUAGE_COL, &glib::Value::from(lang));
 
         if let Some(comment) = stream
             .tags
             .get_index::<gst::tags::Comment>(0)
             .and_then(|value| value.get())
         {
-            store.set_value(&iter, COMMENT_COL, &glib::Value::from(comment));
+            self.store
+                .set_value(&iter, COMMENT_COL, &glib::Value::from(comment));
         }
 
-        store.set_value(
+        self.store.set_value(
             &iter,
             CODEC_COL,
             &glib::Value::from(&stream.codec_printable),
@@ -237,165 +141,277 @@ impl StreamsController {
         iter
     }
 
-    pub fn get_stream_at(&self, store: &gtk::ListStore, iter: &gtk::TreeIter) -> Arc<str> {
-        store
-            .get_value(iter, STREAM_ID_COL as i32)
-            .get::<String>()
-            .unwrap()
-            .unwrap()
-            .into()
-    }
+    fn stream_clicked(&mut self) -> StreamClickedStatus {
+        if let (Some(cursor_path), _) = self.treeview.get_cursor() {
+            if let Some(iter) = self.store.get_iter(&cursor_path) {
+                let stream = self
+                    .store
+                    .get_value(&iter, STREAM_ID_COL as i32)
+                    .get::<String>()
+                    .unwrap()
+                    .unwrap()
+                    .into();
+                let stream_to_select = match &self.selected {
+                    Some(stream_id) => {
+                        if stream_id != &stream {
+                            // Stream has changed
+                            Some(stream)
+                        } else {
+                            None
+                        }
+                    }
+                    None => Some(stream),
+                };
 
-    fn init_treeviews(&self) {
-        self.video_treeview.set_model(Some(&self.video_store));
-
-        let stream_id_lbl = gettext("Stream id");
-        let language_lbl = gettext("Language");
-        let codec_lbl = gettext("Codec");
-        let comment_lbl = gettext("Comment");
-
-        // Video
-        self.add_text_column(
-            &self.video_treeview,
-            &stream_id_lbl,
-            ALIGN_LEFT,
-            STREAM_ID_DISPLAY_COL,
-            Some(200),
-        );
-        self.add_text_column(
-            &self.video_treeview,
-            &language_lbl,
-            ALIGN_CENTER,
-            LANGUAGE_COL,
-            None,
-        );
-        self.add_text_column(
-            &self.video_treeview,
-            &codec_lbl,
-            ALIGN_LEFT,
-            CODEC_COL,
-            None,
-        );
-        self.add_text_column(
-            &self.video_treeview,
-            &gettext("Width"),
-            ALIGN_RIGHT,
-            VIDEO_WIDTH_COL,
-            None,
-        );
-        self.add_text_column(
-            &self.video_treeview,
-            &gettext("Height"),
-            ALIGN_RIGHT,
-            VIDEO_HEIGHT_COL,
-            None,
-        );
-        self.add_text_column(
-            &self.video_treeview,
-            &comment_lbl,
-            ALIGN_LEFT,
-            COMMENT_COL,
-            None,
-        );
-
-        // Audio
-        self.audio_treeview.set_model(Some(&self.audio_store));
-        self.add_text_column(
-            &self.audio_treeview,
-            &stream_id_lbl,
-            ALIGN_LEFT,
-            STREAM_ID_DISPLAY_COL,
-            Some(200),
-        );
-        self.add_text_column(
-            &self.audio_treeview,
-            &language_lbl,
-            ALIGN_CENTER,
-            LANGUAGE_COL,
-            None,
-        );
-        self.add_text_column(
-            &self.audio_treeview,
-            &codec_lbl,
-            ALIGN_LEFT,
-            CODEC_COL,
-            None,
-        );
-        self.add_text_column(
-            &self.audio_treeview,
-            &gettext("Rate"),
-            ALIGN_RIGHT,
-            AUDIO_RATE_COL,
-            None,
-        );
-        self.add_text_column(
-            &self.audio_treeview,
-            &gettext("Channels"),
-            ALIGN_RIGHT,
-            AUDIO_CHANNELS_COL,
-            None,
-        );
-        self.add_text_column(
-            &self.audio_treeview,
-            &comment_lbl,
-            ALIGN_LEFT,
-            COMMENT_COL,
-            None,
-        );
-
-        // Text
-        self.text_treeview.set_model(Some(&self.text_store));
-        self.add_text_column(
-            &self.text_treeview,
-            &stream_id_lbl,
-            ALIGN_LEFT,
-            STREAM_ID_DISPLAY_COL,
-            Some(200),
-        );
-        self.add_text_column(
-            &self.text_treeview,
-            &language_lbl,
-            ALIGN_CENTER,
-            LANGUAGE_COL,
-            None,
-        );
-        self.add_text_column(&self.text_treeview, &codec_lbl, ALIGN_LEFT, CODEC_COL, None);
-        self.add_text_column(
-            &self.text_treeview,
-            &gettext("Format"),
-            ALIGN_LEFT,
-            TEXT_FORMAT_COL,
-            None,
-        );
-        self.add_text_column(
-            &self.text_treeview,
-            &comment_lbl,
-            ALIGN_LEFT,
-            COMMENT_COL,
-            None,
-        );
-    }
-
-    fn add_text_column(
-        &self,
-        treeview: &gtk::TreeView,
-        title: &str,
-        alignment: f32,
-        col_id: u32,
-        width: Option<i32>,
-    ) {
-        let col = gtk::TreeViewColumn::new();
-        col.set_title(title);
-
-        let renderer = gtk::CellRendererText::new();
-        renderer.set_alignment(alignment, 0.5f32);
-        col.pack_start(&renderer, true);
-        col.add_attribute(&renderer, "text", col_id as i32);
-
-        if let Some(width) = width {
-            renderer.set_fixed_size(width, -1);
+                if let Some(new_stream) = stream_to_select {
+                    self.selected = Some(new_stream);
+                    return StreamClickedStatus::Changed;
+                }
+            }
         }
 
-        treeview.append_column(&col);
+        StreamClickedStatus::Unchanged
+    }
+}
+
+pub(super) struct UIStreamVideoImpl;
+impl UIStreamVideoImpl {
+    const VIDEO_WIDTH_COL: u32 = 5;
+    const VIDEO_HEIGHT_COL: u32 = 6;
+}
+
+impl UIStreamImpl for UIStreamVideoImpl {
+    const TYPE: gst::StreamType = gst::StreamType::VIDEO;
+
+    fn new_media(store: &gtk::ListStore, iter: &gtk::TreeIter, caps_struct: &gst::StructureRef) {
+        if let Ok(Some(width)) = caps_struct.get::<i32>("width") {
+            store.set_value(iter, Self::VIDEO_WIDTH_COL, &glib::Value::from(&width));
+        }
+        if let Ok(Some(height)) = caps_struct.get::<i32>("height") {
+            store.set_value(iter, Self::VIDEO_HEIGHT_COL, &glib::Value::from(&height));
+        }
+    }
+
+    fn init_treeview(treeview: &gtk::TreeView, store: &gtk::ListStore) {
+        treeview.set_model(Some(store));
+
+        // Video
+        Self::add_text_column(
+            treeview,
+            &gettext("Stream id"),
+            ALIGN_LEFT,
+            STREAM_ID_DISPLAY_COL,
+            Some(200),
+        );
+        Self::add_text_column(
+            treeview,
+            &gettext("Language"),
+            ALIGN_CENTER,
+            LANGUAGE_COL,
+            None,
+        );
+        Self::add_text_column(treeview, &gettext("Codec"), ALIGN_LEFT, CODEC_COL, None);
+        Self::add_text_column(
+            treeview,
+            &gettext("Width"),
+            ALIGN_RIGHT,
+            Self::VIDEO_WIDTH_COL,
+            None,
+        );
+        Self::add_text_column(
+            treeview,
+            &gettext("Height"),
+            ALIGN_RIGHT,
+            Self::VIDEO_HEIGHT_COL,
+            None,
+        );
+        Self::add_text_column(treeview, &gettext("Comment"), ALIGN_LEFT, COMMENT_COL, None);
+    }
+}
+
+pub(super) struct UIStreamAudioImpl;
+impl UIStreamAudioImpl {
+    const AUDIO_RATE_COL: u32 = 5;
+    const AUDIO_CHANNELS_COL: u32 = 6;
+}
+
+impl UIStreamImpl for UIStreamAudioImpl {
+    const TYPE: gst::StreamType = gst::StreamType::AUDIO;
+
+    fn new_media(store: &gtk::ListStore, iter: &gtk::TreeIter, caps_struct: &gst::StructureRef) {
+        if let Ok(Some(rate)) = caps_struct.get::<i32>("rate") {
+            store.set_value(&iter, Self::AUDIO_RATE_COL, &glib::Value::from(&rate));
+        }
+        if let Ok(Some(channels)) = caps_struct.get::<i32>("channels") {
+            store.set_value(
+                &iter,
+                Self::AUDIO_CHANNELS_COL,
+                &glib::Value::from(&channels),
+            );
+        }
+    }
+
+    fn init_treeview(treeview: &gtk::TreeView, store: &gtk::ListStore) {
+        treeview.set_model(Some(store));
+
+        Self::add_text_column(
+            treeview,
+            &gettext("Stream id"),
+            ALIGN_LEFT,
+            STREAM_ID_DISPLAY_COL,
+            Some(200),
+        );
+        Self::add_text_column(
+            treeview,
+            &gettext("Language"),
+            ALIGN_CENTER,
+            LANGUAGE_COL,
+            None,
+        );
+        Self::add_text_column(treeview, &gettext("Codec"), ALIGN_LEFT, CODEC_COL, None);
+        Self::add_text_column(
+            treeview,
+            &gettext("Rate"),
+            ALIGN_RIGHT,
+            Self::AUDIO_RATE_COL,
+            None,
+        );
+        Self::add_text_column(
+            treeview,
+            &gettext("Channels"),
+            ALIGN_RIGHT,
+            Self::AUDIO_CHANNELS_COL,
+            None,
+        );
+        Self::add_text_column(treeview, &gettext("Comment"), ALIGN_LEFT, COMMENT_COL, None);
+    }
+}
+
+pub(super) struct UIStreamTextImpl;
+impl UIStreamTextImpl {
+    const TEXT_FORMAT_COL: u32 = 5;
+}
+
+impl UIStreamImpl for UIStreamTextImpl {
+    const TYPE: gst::StreamType = gst::StreamType::TEXT;
+
+    fn new_media(store: &gtk::ListStore, iter: &gtk::TreeIter, caps_struct: &gst::StructureRef) {
+        if let Ok(Some(format)) = caps_struct.get::<&str>("format") {
+            store.set_value(&iter, Self::TEXT_FORMAT_COL, &glib::Value::from(&format));
+        }
+    }
+
+    fn init_treeview(treeview: &gtk::TreeView, store: &gtk::ListStore) {
+        treeview.set_model(Some(store));
+
+        Self::add_text_column(
+            treeview,
+            &gettext("Stream id"),
+            ALIGN_LEFT,
+            STREAM_ID_DISPLAY_COL,
+            Some(200),
+        );
+        Self::add_text_column(
+            treeview,
+            &gettext("Language"),
+            ALIGN_CENTER,
+            LANGUAGE_COL,
+            None,
+        );
+        Self::add_text_column(treeview, &gettext("Codec"), ALIGN_LEFT, CODEC_COL, None);
+        Self::add_text_column(
+            treeview,
+            &gettext("Format"),
+            ALIGN_LEFT,
+            Self::TEXT_FORMAT_COL,
+            None,
+        );
+        Self::add_text_column(treeview, &gettext("Comment"), ALIGN_LEFT, COMMENT_COL, None);
+    }
+}
+
+pub struct StreamsController {
+    pub(super) page: gtk::Grid,
+
+    pub(super) video: UIStream<UIStreamVideoImpl>,
+    pub(super) audio: UIStream<UIStreamAudioImpl>,
+    pub(super) text: UIStream<UIStreamTextImpl>,
+}
+
+impl UIController for StreamsController {
+    fn new_media(&mut self, pipeline: &PlaybackPipeline) {
+        self.video.new_media(&pipeline.info.streams);
+        self.audio.new_media(&pipeline.info.streams);
+        self.text.new_media(&pipeline.info.streams);
+    }
+
+    fn cleanup(&mut self) {
+        self.video.cleanup();
+        self.audio.cleanup();
+        self.text.cleanup();
+    }
+
+    fn grab_focus(&self) {
+        // grab focus asynchronoulsy because it triggers the `cursor_changed` signal
+        // which needs to check if the stream has changed
+        let audio_treeview = self.audio.treeview.clone();
+        spawn(async move {
+            audio_treeview.grab_focus();
+        });
+    }
+}
+
+impl StreamsController {
+    pub fn new(builder: &gtk::Builder) -> Self {
+        let mut ctrl = StreamsController {
+            page: builder.get_object("streams-grid").unwrap(),
+
+            video: UIStream::new(
+                builder.get_object("video_streams-treeview").unwrap(),
+                builder.get_object("video_streams-liststore").unwrap(),
+            ),
+
+            audio: UIStream::new(
+                builder.get_object("audio_streams-treeview").unwrap(),
+                builder.get_object("audio_streams-liststore").unwrap(),
+            ),
+
+            text: UIStream::new(
+                builder.get_object("text_streams-treeview").unwrap(),
+                builder.get_object("text_streams-liststore").unwrap(),
+            ),
+        };
+
+        ctrl.cleanup();
+
+        ctrl.video.init_treeview();
+        ctrl.audio.init_treeview();
+        ctrl.text.init_treeview();
+
+        ctrl
+    }
+
+    pub(super) fn stream_clicked(&mut self, type_: gst::StreamType) -> StreamClickedStatus {
+        match type_ {
+            gst::StreamType::VIDEO => self.video.stream_clicked(),
+            gst::StreamType::AUDIO => self.audio.stream_clicked(),
+            gst::StreamType::TEXT => self.text.stream_clicked(),
+            other => unimplemented!("{:?}", other),
+        }
+    }
+
+    pub fn selected_streams(&self) -> Vec<Arc<str>> {
+        let mut streams: Vec<Arc<str>> = Vec::new();
+        if let Some(stream) = self.video.selected.as_ref() {
+            streams.push(Arc::clone(stream));
+        }
+        if let Some(stream) = self.audio.selected.as_ref() {
+            streams.push(Arc::clone(stream));
+        }
+        if let Some(stream) = self.text.selected.as_ref() {
+            streams.push(Arc::clone(stream));
+        }
+
+        streams
     }
 }

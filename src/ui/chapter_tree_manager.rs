@@ -1,7 +1,6 @@
 use bitflags::bitflags;
 
 use gettextrs::gettext;
-use gstreamer as gst;
 
 use gtk::prelude::*;
 
