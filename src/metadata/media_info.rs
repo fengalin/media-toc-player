@@ -173,12 +173,12 @@ impl StreamCollection {
         self.collection.contains_key(id.as_ref())
     }
 
-    pub fn sorted(&self) -> SortedStreamCollectionIter<'_> {
+    pub fn sorted(&self) -> impl Iterator<Item = &'_ Stream> {
         SortedStreamCollectionIter::new(self)
     }
 }
 
-pub struct SortedStreamCollectionIter<'sc> {
+struct SortedStreamCollectionIter<'sc> {
     collection: &'sc StreamCollection,
     sorted_iter: std::vec::IntoIter<Arc<str>>,
 }
