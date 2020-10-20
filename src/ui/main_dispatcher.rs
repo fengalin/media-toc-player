@@ -163,7 +163,6 @@ impl MainDispatcher {
 
         match event {
             About => self.main_ctrl.borrow().about(),
-            CancelSelectMedia => self.main_ctrl.borrow_mut().cancel_select_media(),
             ChapterClicked(tree_path) => {
                 let mut main_ctrl = self.main_ctrl.borrow_mut();
                 let seek_ts = main_ctrl

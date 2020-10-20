@@ -3,6 +3,7 @@ use futures::prelude::*;
 
 use gettextrs::{gettext, ngettext};
 
+use glib::clone;
 use gtk::prelude::*;
 
 use log::error;
@@ -29,7 +30,6 @@ pub enum ControllerState {
     EosPaused,
     EosPlaying,
     Paused,
-    PendingSelectMediaDecision,
     Playing,
     Stopped,
 }
@@ -79,14 +79,14 @@ impl MainController {
             .cancel_label(&gettext("Cancel"))
             .build();
 
-        let ui_event_clone = ui_event.clone();
-        file_dlg.connect_response(move |file_dlg, response| {
+        file_dlg.connect_response(clone!(@strong ui_event => move |file_dlg, response| {
             file_dlg.hide();
-            match (response, file_dlg.get_filename()) {
-                (gtk::ResponseType::Accept, Some(path)) => ui_event_clone.open_media(path),
-                _ => ui_event_clone.cancel_select_media(),
+            if response == gtk::ResponseType::Accept {
+                if let Some(path) = file_dlg.get_filename() {
+                    ui_event.open_media(path);
+                }
             }
-        });
+        }));
 
         let gst_init_res = gst::init();
 
@@ -222,7 +222,6 @@ impl MainController {
                 }
             }
             Stopped => self.select_media().await,
-            PendingSelectMediaDecision => (),
         }
     }
 
@@ -334,7 +333,6 @@ impl MainController {
             self.hold().await;
         }
 
-        self.state = ControllerState::PendingSelectMediaDecision;
         self.ui_event.hide_info_bar();
 
         if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
@@ -445,15 +443,5 @@ impl MainController {
             plugins.len() as u32,
         )
         .replacen("{}", &format!("{}", plugins), 1)
-    }
-
-    pub fn cancel_select_media(&mut self) {
-        if self.state == ControllerState::PendingSelectMediaDecision {
-            self.state = if self.pipeline.is_some() {
-                ControllerState::Paused
-            } else {
-                ControllerState::Stopped
-            };
-        }
     }
 }

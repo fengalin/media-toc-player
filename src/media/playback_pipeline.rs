@@ -1,4 +1,4 @@
-use futures::channel::{mpsc as async_chan, oneshot};
+use futures::channel::{mpsc as async_mpsc, oneshot};
 use futures::prelude::*;
 
 use gettextrs::gettext;
@@ -173,8 +173,8 @@ pub struct PlaybackPipeline {
     pipeline: gst::Pipeline,
     pub info: MediaInfo,
     pub missing_plugins: MissingPlugins,
-    pub media_msg_rx: Option<async_chan::UnboundedReceiver<MediaMessage>>,
-    int_msg_rx: async_chan::UnboundedReceiver<gst::Message>,
+    pub media_msg_rx: Option<async_mpsc::UnboundedReceiver<MediaMessage>>,
+    int_msg_rx: async_mpsc::UnboundedReceiver<gst::Message>,
     bus_watch_src_id: Option<glib::SourceId>,
 }
 
@@ -189,8 +189,8 @@ impl PlaybackPipeline {
             gettext("Opening {}...").replacen("{}", path.to_str().unwrap(), 1)
         );
 
-        let (ext_msg_tx, ext_msg_rx) = async_chan::unbounded();
-        let (int_msg_tx, int_msg_rx) = async_chan::unbounded();
+        let (ext_msg_tx, ext_msg_rx) = async_mpsc::unbounded();
+        let (int_msg_tx, int_msg_rx) = async_mpsc::unbounded();
 
         let mut this = PlaybackPipeline {
             pipeline: gst::Pipeline::new(Some("playback_pipeline")),
@@ -292,8 +292,8 @@ impl PlaybackPipeline {
 
     async fn open(
         mut self,
-        ext_msg_tx: async_chan::UnboundedSender<MediaMessage>,
-        int_msg_tx: async_chan::UnboundedSender<gst::Message>,
+        ext_msg_tx: async_mpsc::UnboundedSender<MediaMessage>,
+        int_msg_tx: async_mpsc::UnboundedSender<gst::Message>,
     ) -> Result<Self, OpenError> {
         let pipeline = self.pipeline.clone();
 
@@ -432,8 +432,8 @@ impl PlaybackPipeline {
 
     fn register_operations_bus_watch(
         &mut self,
-        ext_msg_tx: async_chan::UnboundedSender<MediaMessage>,
-        int_msg_tx: async_chan::UnboundedSender<gst::Message>,
+        ext_msg_tx: async_mpsc::UnboundedSender<MediaMessage>,
+        int_msg_tx: async_mpsc::UnboundedSender<gst::Message>,
     ) {
         let bus_watch_src_id = self
             .pipeline

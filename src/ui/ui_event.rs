@@ -14,7 +14,6 @@ pub enum UIFocusContext {
 #[derive(Debug)]
 pub enum UIEvent {
     About,
-    CancelSelectMedia,
     ChapterClicked(gtk::TreePath),
     Eos,
     HideInfoBar,
@@ -55,11 +54,6 @@ impl UIEventSender {
 
     pub fn about(&self) {
         self.send(UIEvent::About);
-    }
-
-    pub fn cancel_select_media(&self) {
-        self.send(UIEvent::CancelSelectMedia);
-        self.reset_cursor();
     }
 
     pub fn chapter_clicked(&self, tree_path: gtk::TreePath) {
