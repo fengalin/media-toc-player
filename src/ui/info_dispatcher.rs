@@ -12,7 +12,7 @@ impl UIDispatcher for InfoDispatcher {
 
     fn setup(
         info_ctrl: &mut InfoController,
-        main_ctrl_rc: &Rc<RefCell<MainController>>,
+        _main_ctrl_rc: &Rc<RefCell<MainController>>,
         app: &gtk::Application,
         ui_event: &UIEventSender,
     ) {
@@ -27,16 +27,6 @@ impl UIDispatcher for InfoDispatcher {
         info_ctrl.show_chapters_btn.connect_toggled(clone!(
             @strong ui_event => move |toggle_button| {
                 ui_event.toggle_chapter_list(!toggle_button.get_active());
-            }
-        ));
-
-        // Draw thumnail image
-        info_ctrl.drawingarea.connect_draw(clone!(
-            @weak main_ctrl_rc => @default-return Inhibit(true), move |drawingarea, cairo_ctx| {
-                if let Ok(mut main_ctrl) = main_ctrl_rc.try_borrow_mut() {
-                    main_ctrl.info_ctrl.draw_thumbnail(drawingarea, cairo_ctx);
-                }
-                Inhibit(true)
             }
         ));
 

@@ -43,17 +43,17 @@ impl UIController for VideoController {
     }
 
     fn streams_changed(&mut self, info: &MediaInfo) {
-        if self.video_output.is_some() {
+        if let Some(video_output) = self.video_output.as_ref() {
             if let Some(cleaner_id) = self.cleaner_id.take() {
                 self.container.get_children()[0].disconnect(cleaner_id);
             }
 
             if info.streams.is_video_selected() {
                 debug!("streams_changed video selected");
-                self.container.show();
+                video_output.widget.show();
             } else {
                 debug!("streams_changed video not selected");
-                self.container.hide();
+                video_output.widget.hide();
             }
         }
     }

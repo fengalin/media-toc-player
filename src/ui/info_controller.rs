@@ -1,6 +1,6 @@
 use gettextrs::gettext;
 use gtk::prelude::*;
-use log::{info, warn};
+use log::{debug, info, warn};
 
 use std::fs::File;
 
@@ -18,6 +18,52 @@ use super::{
 const EMPTY_REPLACEMENT: &str = "-";
 const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
 pub const SEEK_STEP: Duration = Duration::from_nanos(2_500_000_000);
+
+enum ThumbnailState {
+    Blocked(glib::SignalHandlerId),
+    Unblocked(glib::SignalHandlerId),
+    None,
+}
+
+impl ThumbnailState {
+    fn new(signal_handler_id: glib::SignalHandlerId, drawingarea: &gtk::DrawingArea) -> Self {
+        glib::signal_handler_block(drawingarea, &signal_handler_id);
+        ThumbnailState::Blocked(signal_handler_id)
+    }
+
+    fn disconnect(&mut self, drawingarea: &gtk::DrawingArea) {
+        let prev = std::mem::replace(self, ThumbnailState::None);
+        let signal_handler_id = match prev {
+            ThumbnailState::Blocked(signal_handler_id) => signal_handler_id,
+            ThumbnailState::Unblocked(signal_handler_id) => signal_handler_id,
+            _ => return,
+        };
+
+        glib::signal_handler_disconnect(drawingarea, signal_handler_id);
+    }
+
+    fn block(&mut self, drawingarea: &gtk::DrawingArea) {
+        let prev = std::mem::replace(self, ThumbnailState::None);
+        match prev {
+            ThumbnailState::Unblocked(signal_handler_id) => {
+                glib::signal_handler_block(drawingarea, &signal_handler_id);
+                *self = ThumbnailState::Blocked(signal_handler_id);
+            }
+            other => *self = other,
+        };
+    }
+
+    fn unblock(&mut self, drawingarea: &gtk::DrawingArea) {
+        let prev = std::mem::replace(self, ThumbnailState::None);
+        match prev {
+            ThumbnailState::Blocked(signal_handler_id) => {
+                glib::signal_handler_unblock(drawingarea, &signal_handler_id);
+                *self = ThumbnailState::Unblocked(signal_handler_id);
+            }
+            other => *self = other,
+        };
+    }
+}
 
 pub struct InfoController {
     ui_event: UIEventSender,
@@ -42,7 +88,7 @@ pub struct InfoController {
     pub(super) next_chapter_action: gio::SimpleAction,
     pub(super) previous_chapter_action: gio::SimpleAction,
 
-    thumbnail: Option<Image>,
+    thumbnail_state: ThumbnailState,
 
     pub(super) chapter_manager: ChapterTreeManager,
 
@@ -77,8 +123,7 @@ impl UIController for InfoController {
             self.duration_lbl
                 .set_label(&Timestamp4Humans::from_duration(pipeline.info.duration).to_string());
 
-            // FIXME no longer displayed
-            self.thumbnail = pipeline.info.media_image().and_then(|image| {
+            let thumbnail = pipeline.info.media_image().and_then(|image| {
                 image.get_buffer().and_then(|image_buffer| {
                     image_buffer.map_readable().ok().and_then(|image_map| {
                         Image::from_unknown(image_map.as_slice())
@@ -87,6 +132,17 @@ impl UIController for InfoController {
                     })
                 })
             });
+
+            if let Some(thumbnail) = thumbnail {
+                self.thumbnail_state = ThumbnailState::new(
+                    self.drawingarea
+                        .connect_draw(move |drawingarea, cairo_ctx| {
+                            Self::draw_thumbnail(&thumbnail, drawingarea, cairo_ctx);
+                            Inhibit(true)
+                        }),
+                    &self.drawingarea,
+                );
+            }
 
             self.container_lbl
                 .set_label(pipeline.info.container().unwrap_or(EMPTY_REPLACEMENT));
@@ -150,13 +206,6 @@ impl UIController for InfoController {
         self.next_chapter_action.set_enabled(true);
         self.previous_chapter_action.set_enabled(true);
 
-        if self.thumbnail.is_some() {
-            self.drawingarea.show();
-            self.drawingarea.queue_draw();
-        } else {
-            self.drawingarea.hide();
-        }
-
         self.ui_event.update_focus();
     }
 
@@ -168,7 +217,7 @@ impl UIController for InfoController {
         self.video_codec_lbl.set_text("");
         self.position_lbl.set_text("00:00.000");
         self.duration_lbl.set_text("00:00.000");
-        self.thumbnail = None;
+        self.thumbnail_state.disconnect(&self.drawingarea);
         self.chapter_treeview.get_selection().unselect_all();
         self.chapter_manager.clear();
         self.next_chapter_action.set_enabled(false);
@@ -192,6 +241,16 @@ impl UIController for InfoController {
             .set_label(info.streams.audio_codec().unwrap_or(EMPTY_REPLACEMENT));
         self.video_codec_lbl
             .set_label(info.streams.video_codec().unwrap_or(EMPTY_REPLACEMENT));
+
+        if !info.streams.is_video_selected() {
+            debug!("streams_changed showing thumbnail");
+            self.thumbnail_state.unblock(&self.drawingarea);
+            self.drawingarea.show();
+            self.drawingarea.queue_draw();
+        } else {
+            self.thumbnail_state.block(&self.drawingarea);
+            self.drawingarea.hide();
+        }
     }
 
     fn grab_focus(&self) {
@@ -245,7 +304,7 @@ impl InfoController {
             next_chapter_action: gio::SimpleAction::new("next_chapter", None),
             previous_chapter_action: gio::SimpleAction::new("previous_chapter", None),
 
-            thumbnail: None,
+            thumbnail_state: ThumbnailState::None,
 
             chapter_manager,
 
@@ -266,31 +325,33 @@ impl InfoController {
         ctrl
     }
 
-    pub fn draw_thumbnail(&mut self, drawingarea: &gtk::DrawingArea, cairo_ctx: &cairo::Context) {
-        if let Some(image) = self.thumbnail.as_mut() {
-            let allocation = drawingarea.get_allocation();
-            let alloc_width_f: f64 = allocation.width.into();
-            let alloc_height_f: f64 = allocation.height.into();
+    pub fn draw_thumbnail(
+        image: &Image,
+        drawingarea: &gtk::DrawingArea,
+        cairo_ctx: &cairo::Context,
+    ) {
+        let allocation = drawingarea.get_allocation();
+        let alloc_width_f: f64 = allocation.width.into();
+        let alloc_height_f: f64 = allocation.height.into();
 
-            let image_width_f: f64 = image.width().into();
-            let image_height_f: f64 = image.height().into();
+        let image_width_f: f64 = image.width().into();
+        let image_height_f: f64 = image.height().into();
 
-            let alloc_ratio = alloc_width_f / alloc_height_f;
-            let image_ratio = image_width_f / image_height_f;
-            let scale = if image_ratio < alloc_ratio {
-                alloc_height_f / image_height_f
-            } else {
-                alloc_width_f / image_width_f
-            };
-            let x = (alloc_width_f / scale - image_width_f).abs() / 2f64;
-            let y = (alloc_height_f / scale - image_height_f).abs() / 2f64;
+        let alloc_ratio = alloc_width_f / alloc_height_f;
+        let image_ratio = image_width_f / image_height_f;
+        let scale = if image_ratio < alloc_ratio {
+            alloc_height_f / image_height_f
+        } else {
+            alloc_width_f / image_width_f
+        };
+        let x = (alloc_width_f / scale - image_width_f).abs() / 2f64;
+        let y = (alloc_height_f / scale - image_height_f).abs() / 2f64;
 
-            image.with_surface_external_context(cairo_ctx, |cr, surface| {
-                cr.scale(scale, scale);
-                cr.set_source_surface(surface, x, y);
-                cr.paint();
-            })
-        }
+        image.with_surface_external_context(cairo_ctx, |cr, surface| {
+            cr.scale(scale, scale);
+            cr.set_source_surface(surface, x, y);
+            cr.paint();
+        })
     }
 
     fn update_marks(&self) {

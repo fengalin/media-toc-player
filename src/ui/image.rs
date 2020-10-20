@@ -1,4 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 // This is from https://github.com/gtk-rs/examples/blob/master/src/bin/cairo_threads.rs
 // Helper struct that allows passing the pixels to the Cairo image surface and once the
@@ -33,11 +36,11 @@ impl AsMut<[u8]> for ImageHolder {
 //
 // Note that the alignments here a forced to Cairo's requirements
 // Force dimensions to `u16` so that we are sure to fit in the `i32` dimensions
-#[derive(Clone)]
 pub struct Image {
-    pixels: Option<Box<[u8]>>,
-    width: i32,
-    height: i32,
+    // Use a Cell to hide internal implementation details due to Cairo surface ownership
+    pixels: Cell<Option<Box<[u8]>>>,
+    pub width: i32,
+    pub height: i32,
     stride: i32,
 }
 
@@ -79,7 +82,7 @@ impl Image {
                 }
 
                 Ok(Image {
-                    pixels: Some(pixels.into()),
+                    pixels: Cell::new(Some(pixels.into())),
                     width,
                     height,
                     stride,
@@ -105,19 +108,20 @@ impl Image {
     // Calls the given closure with a temporary Cairo image surface. After the closure has returned
     // there must be no further references to the surface.
     pub fn with_surface_external_context<F: FnOnce(&cairo::Context, &cairo::ImageSurface)>(
-        &mut self,
+        &self,
         cr: &cairo::Context,
         func: F,
     ) {
         // Temporary move out the pixels
-        let pixels = self.pixels.take().expect("Empty image");
+        let pixels = self.pixels.take();
+        assert!(pixels.is_some());
 
         // A new return location that is then passed to our helper struct below
         let return_location = Rc::new(RefCell::new(None));
         {
             let holder = ImageHolder {
-                pixels: Some(pixels),
-                return_location: return_location.clone(),
+                pixels,
+                return_location: Rc::clone(&return_location),
             };
 
             // The surface will own the image for the scope of the block below
@@ -141,12 +145,10 @@ impl Image {
             // Now the surface will be destroyed and the pixels are stored in the return_location
         }
 
-        // And here move the pixels back again
-        self.pixels = Some(
-            return_location
-                .borrow_mut()
-                .take()
-                .expect("Image not returned"),
-        );
+        // Move the pixels back
+        let pixels = return_location.borrow_mut().take();
+        assert!(pixels.is_some());
+
+        self.pixels.set(pixels);
     }
 }
