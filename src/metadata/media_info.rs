@@ -76,26 +76,6 @@ lazy_static! {
     };
 }
 
-macro_rules! tag_for_display (
-    ($info:expr, $primary_tag:ty, $secondary_tag:ty) => {
-        #[allow(clippy::redundant_closure)]
-        $info
-            .tag_list::<$primary_tag>()
-            .or_else(|| $info.tag_list::<$secondary_tag>())
-            .or_else(|| {
-                $info.streams
-                    .tag_list::<$primary_tag>()
-                    .or_else(|| $info.streams.tag_list::<$secondary_tag>())
-            })
-            .and_then(|tag_list| {
-                tag_list
-                    .get_index::<$primary_tag>(0)
-                    .or_else(|| tag_list.get_index::<$secondary_tag>(0))
-                    .and_then(|value| value.get().map(|ref_value| ref_value.to_owned()))
-            })
-    };
-);
-
 #[derive(Debug, Clone)]
 pub struct Stream {
     pub id: Arc<str>,
@@ -339,11 +319,11 @@ impl Streams {
             .map(|stream| stream.codec_printable.as_str())
     }
 
-    fn tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
+    fn tag_list<'a, T: gst::Tag<'a>>(&'a self) -> Option<&gst::TagList> {
         self.selected_audio()
             .and_then(|selected_audio| {
                 if selected_audio.tags.get_size::<T>() > 0 {
-                    Some(selected_audio.tags.clone())
+                    Some(&selected_audio.tags)
                 } else {
                     None
                 }
@@ -351,7 +331,7 @@ impl Streams {
             .or_else(|| {
                 self.selected_video().and_then(|selected_video| {
                     if selected_video.tags.get_size::<T>() > 0 {
-                        Some(selected_video.tags.clone())
+                        Some(&selected_video.tags)
                     } else {
                         None
                     }
@@ -395,24 +375,46 @@ impl MediaInfo {
         self.tags = self.tags.merge(tags, gst::TagMergeMode::Keep);
     }
 
-    fn tag_list<'a, T: gst::Tag<'a>>(&self) -> Option<gst::TagList> {
+    fn tag_list<'a, T: gst::Tag<'a>>(&'a self) -> Option<&gst::TagList> {
         if self.tags.get_size::<T>() > 0 {
-            Some(self.tags.clone())
+            Some(&self.tags)
         } else {
             None
         }
     }
 
-    pub fn media_artist(&self) -> Option<String> {
-        tag_for_display!(self, gst::tags::Artist, gst::tags::AlbumArtist)
+    fn tag_for_display<'a, Primary, Secondary>(
+        &'a self,
+    ) -> Option<<Primary as gst::Tag<'a>>::TagType>
+    where
+        Primary: gst::Tag<'a> + 'a,
+        Secondary: gst::Tag<'a, TagType = <Primary as gst::Tag<'a>>::TagType> + 'a,
+    {
+        self.tag_list::<Primary>()
+            .or_else(|| self.tag_list::<Secondary>())
+            .or_else(|| {
+                self.streams
+                    .tag_list::<Primary>()
+                    .or_else(|| self.streams.tag_list::<Secondary>())
+            })
+            .and_then(|tag_list| {
+                tag_list
+                    .get_index::<Primary>(0)
+                    .or_else(|| tag_list.get_index::<Secondary>(0))
+                    .and_then(|value| value.get())
+            })
     }
 
-    pub fn media_title(&self) -> Option<String> {
-        tag_for_display!(self, gst::tags::Title, gst::tags::Album)
+    pub fn media_artist(&self) -> Option<&str> {
+        self.tag_for_display::<gst::tags::Artist, gst::tags::AlbumArtist>()
+    }
+
+    pub fn media_title(&self) -> Option<&str> {
+        self.tag_for_display::<gst::tags::Title, gst::tags::Album>()
     }
 
     pub fn media_image(&self) -> Option<gst::Sample> {
-        tag_for_display!(self, gst::tags::Image, gst::tags::PreviewImage)
+        self.tag_for_display::<gst::tags::Image, gst::tags::PreviewImage>()
     }
 
     pub fn container(&self) -> Option<&str> {

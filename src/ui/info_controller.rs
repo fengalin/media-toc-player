@@ -180,11 +180,11 @@ impl UIController for InfoController {
 
     fn streams_changed(&mut self, info: &MediaInfo) {
         match info.media_artist() {
-            Some(artist) => self.artist_lbl.set_label(&artist),
+            Some(artist) => self.artist_lbl.set_label(artist),
             None => self.artist_lbl.set_label(EMPTY_REPLACEMENT),
         }
         match info.media_title() {
-            Some(title) => self.title_lbl.set_label(&title),
+            Some(title) => self.title_lbl.set_label(title),
             None => self.title_lbl.set_label(EMPTY_REPLACEMENT),
         }
 
