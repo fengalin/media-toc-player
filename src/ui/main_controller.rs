@@ -30,6 +30,7 @@ pub enum ControllerState {
     EosPaused,
     EosPlaying,
     Paused,
+    PendingSelectMediaDecision,
     Playing,
     Stopped,
 }
@@ -84,8 +85,11 @@ impl MainController {
             if response == gtk::ResponseType::Accept {
                 if let Some(path) = file_dlg.get_filename() {
                     ui_event.open_media(path);
+                    return;
                 }
             }
+
+            ui_event.cancel_select_media();
         }));
 
         let gst_init_res = gst::init();
@@ -222,6 +226,7 @@ impl MainController {
                 }
             }
             Stopped => self.select_media().await,
+            PendingSelectMediaDecision => (),
         }
     }
 
@@ -333,6 +338,8 @@ impl MainController {
             self.hold().await;
         }
 
+        self.state = ControllerState::PendingSelectMediaDecision;
+
         self.ui_event.hide_info_bar();
 
         if let Some(ref last_path) = CONFIG.read().unwrap().media.last_path {
@@ -443,5 +450,15 @@ impl MainController {
             plugins.len() as u32,
         )
         .replacen("{}", &format!("{}", plugins), 1)
+    }
+
+    pub fn cancel_select_media(&mut self) {
+        if self.state == ControllerState::PendingSelectMediaDecision {
+            self.state = if self.pipeline.is_some() {
+                ControllerState::Paused
+            } else {
+                ControllerState::Stopped
+            };
+        }
     }
 }
