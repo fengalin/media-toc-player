@@ -20,48 +20,52 @@ const GO_TO_PREV_CHAPTER_THRESHOLD: Duration = Duration::from_secs(1);
 pub const SEEK_STEP: Duration = Duration::from_nanos(2_500_000_000);
 
 enum ThumbnailState {
-    Blocked(glib::SignalHandlerId),
-    Unblocked(glib::SignalHandlerId),
-    None,
+    Blocked,
+    Unblocked,
 }
 
-impl ThumbnailState {
-    fn new(signal_handler_id: glib::SignalHandlerId, drawingarea: &gtk::DrawingArea) -> Self {
+struct Thumbnail {
+    drawingarea: gtk::DrawingArea,
+    signal_handler_id: Option<glib::SignalHandlerId>,
+    state: ThumbnailState,
+}
+
+impl Thumbnail {
+    fn new<D>(drawingarea: &gtk::DrawingArea, draw_cb: D) -> Self
+    where
+        D: Fn(&gtk::DrawingArea, &cairo::Context) -> Inhibit + 'static,
+    {
+        let signal_handler_id = drawingarea.connect_draw(draw_cb);
         glib::signal_handler_block(drawingarea, &signal_handler_id);
-        ThumbnailState::Blocked(signal_handler_id)
+
+        Thumbnail {
+            drawingarea: drawingarea.clone(),
+            signal_handler_id: Some(signal_handler_id),
+            state: ThumbnailState::Blocked,
+        }
     }
 
-    fn disconnect(&mut self, drawingarea: &gtk::DrawingArea) {
-        let prev = std::mem::replace(self, ThumbnailState::None);
-        let signal_handler_id = match prev {
-            ThumbnailState::Blocked(signal_handler_id) => signal_handler_id,
-            ThumbnailState::Unblocked(signal_handler_id) => signal_handler_id,
-            _ => return,
-        };
-
-        glib::signal_handler_disconnect(drawingarea, signal_handler_id);
+    fn block(&mut self) {
+        if let ThumbnailState::Unblocked = self.state {
+            glib::signal_handler_block(&self.drawingarea, self.signal_handler_id.as_ref().unwrap());
+            self.state = ThumbnailState::Blocked;
+        }
     }
 
-    fn block(&mut self, drawingarea: &gtk::DrawingArea) {
-        let prev = std::mem::replace(self, ThumbnailState::None);
-        match prev {
-            ThumbnailState::Unblocked(signal_handler_id) => {
-                glib::signal_handler_block(drawingarea, &signal_handler_id);
-                *self = ThumbnailState::Blocked(signal_handler_id);
-            }
-            other => *self = other,
-        };
+    fn unblock(&mut self) {
+        if let ThumbnailState::Blocked = self.state {
+            glib::signal_handler_unblock(
+                &self.drawingarea,
+                self.signal_handler_id.as_ref().unwrap(),
+            );
+            self.state = ThumbnailState::Unblocked;
+        }
     }
+}
 
-    fn unblock(&mut self, drawingarea: &gtk::DrawingArea) {
-        let prev = std::mem::replace(self, ThumbnailState::None);
-        match prev {
-            ThumbnailState::Blocked(signal_handler_id) => {
-                glib::signal_handler_unblock(drawingarea, &signal_handler_id);
-                *self = ThumbnailState::Unblocked(signal_handler_id);
-            }
-            other => *self = other,
-        };
+impl Drop for Thumbnail {
+    fn drop(&mut self) {
+        glib::signal_handler_disconnect(&self.drawingarea, self.signal_handler_id.take().unwrap());
     }
 }
 
@@ -88,7 +92,7 @@ pub struct InfoController {
     pub(super) next_chapter_action: gio::SimpleAction,
     pub(super) previous_chapter_action: gio::SimpleAction,
 
-    thumbnail_state: ThumbnailState,
+    thumbnail: Option<Thumbnail>,
 
     pub(super) chapter_manager: ChapterTreeManager,
 
@@ -134,14 +138,13 @@ impl UIController for InfoController {
             });
 
             if let Some(thumbnail) = thumbnail {
-                self.thumbnail_state = ThumbnailState::new(
-                    self.drawingarea
-                        .connect_draw(move |drawingarea, cairo_ctx| {
-                            Self::draw_thumbnail(&thumbnail, drawingarea, cairo_ctx);
-                            Inhibit(true)
-                        }),
+                self.thumbnail = Some(Thumbnail::new(
                     &self.drawingarea,
-                );
+                    move |drawingarea, cairo_ctx| {
+                        Self::draw_thumbnail(&thumbnail, drawingarea, cairo_ctx);
+                        Inhibit(true)
+                    },
+                ));
             }
 
             self.container_lbl
@@ -217,7 +220,7 @@ impl UIController for InfoController {
         self.video_codec_lbl.set_text("");
         self.position_lbl.set_text("00:00.000");
         self.duration_lbl.set_text("00:00.000");
-        self.thumbnail_state.disconnect(&self.drawingarea);
+        let _ = self.thumbnail.take();
         self.chapter_treeview.get_selection().unselect_all();
         self.chapter_manager.clear();
         self.next_chapter_action.set_enabled(false);
@@ -244,11 +247,15 @@ impl UIController for InfoController {
 
         if !info.streams.is_video_selected() {
             debug!("streams_changed showing thumbnail");
-            self.thumbnail_state.unblock(&self.drawingarea);
+            if let Some(thumbnail) = self.thumbnail.as_mut() {
+                thumbnail.unblock();
+            }
             self.drawingarea.show();
             self.drawingarea.queue_draw();
         } else {
-            self.thumbnail_state.block(&self.drawingarea);
+            if let Some(thumbnail) = self.thumbnail.as_mut() {
+                thumbnail.block();
+            }
             self.drawingarea.hide();
         }
     }
@@ -304,7 +311,7 @@ impl InfoController {
             next_chapter_action: gio::SimpleAction::new("next_chapter", None),
             previous_chapter_action: gio::SimpleAction::new("previous_chapter", None),
 
-            thumbnail_state: ThumbnailState::None,
+            thumbnail: None,
 
             chapter_manager,
 
