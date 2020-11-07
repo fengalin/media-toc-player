@@ -217,8 +217,8 @@ impl MainDispatcher {
             }
             SelectMedia => self.main_ctrl.borrow_mut().select_media().await,
             SetCursorWaiting => self.set_cursor_waiting(),
-            ShowError(msg) => self.info_bar_ctrl.show_error(&msg),
-            ShowInfo(msg) => self.info_bar_ctrl.show_info(&msg),
+            ShowError(msg) => self.info_bar_ctrl.show_error(msg),
+            ShowInfo(msg) => self.info_bar_ctrl.show_info(msg),
             StepBack => {
                 let mut main_ctrl = self.main_ctrl.borrow_mut();
                 if let Some(current_ts) = main_ctrl.current_ts() {

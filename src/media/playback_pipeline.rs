@@ -8,7 +8,7 @@ use gst::ClockTime;
 
 use log::{info, warn};
 
-use std::{collections::HashSet, convert::AsRef, fmt, path::Path, sync::Arc};
+use std::{borrow::Borrow, collections::HashSet, fmt, path::Path, sync::Arc};
 
 use crate::metadata::{media_info, Duration, MediaInfo};
 
@@ -594,7 +594,7 @@ impl PlaybackPipeline {
     ) -> Result<(), SelectStreamsError> {
         self.purge_int_msg()?;
 
-        let stream_id_vec: Vec<&str> = stream_ids.iter().map(AsRef::as_ref).collect();
+        let stream_id_vec: Vec<&str> = stream_ids.iter().map(Borrow::<str>::borrow).collect();
         let select_streams_evt = gst::event::SelectStreams::new(&stream_id_vec);
         self.pipeline.send_event(select_streams_evt);
 

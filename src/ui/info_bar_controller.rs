@@ -6,6 +6,8 @@ use gtk::prelude::*;
 
 use log::{error, info};
 
+use std::borrow::Borrow;
+
 use super::{UIEventSender, UIFocusContext};
 
 pub struct InfoBarController {
@@ -60,22 +62,22 @@ impl InfoBarController {
         self.revealer.set_reveal_child(false);
     }
 
-    pub fn show_message<Msg: AsRef<str>>(&mut self, type_: gtk::MessageType, message: Msg) {
+    pub fn show_message<Msg: Borrow<str>>(&mut self, type_: gtk::MessageType, message: Msg) {
         self.info_bar.set_show_close_button(true);
         self.info_bar.set_message_type(type_);
-        self.label.set_label(message.as_ref());
+        self.label.set_label(message.borrow());
         self.revealer.set_reveal_child(true);
 
         self.ui_event.temporarily_switch_to(UIFocusContext::InfoBar);
     }
 
-    pub fn show_error<Msg: AsRef<str>>(&mut self, message: Msg) {
-        error!("{}", message.as_ref());
+    pub fn show_error<Msg: Borrow<str>>(&mut self, message: Msg) {
+        error!("{}", message.borrow());
         self.show_message(gtk::MessageType::Error, message);
     }
 
-    pub fn show_info<Msg: AsRef<str>>(&mut self, message: Msg) {
-        info!("{}", message.as_ref());
+    pub fn show_info<Msg: Borrow<str>>(&mut self, message: Msg) {
+        info!("{}", message.borrow());
         self.show_message(gtk::MessageType::Info, message);
     }
 }
